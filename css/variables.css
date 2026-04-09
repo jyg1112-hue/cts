@@ -1,0 +1,39 @@
+:root {
+  /* 화물 타입 색상 */
+  --coal-primary: #185FA5;
+  --coal-light: #B5D4F4;
+  --coal-bg: #E6F1FB;
+  --nickel-primary: #1D9E75;
+  --nickel-light: #9FE1CB;
+  --nickel-bg: #E1F5EE;
+
+  /* 이슈 카테고리 색상 */
+  --issue-equipment: #D85A30;
+  --issue-equip-bg: #FAECE7;
+  --issue-emergency: #854F0B;
+  --issue-emergency-bg: #FAEEDA;
+  --issue-weather: #185FA5;
+  --issue-weather-bg: #E6F1FB;
+  --issue-cargo: #3B6D11;
+  --issue-cargo-bg: #EAF3DE;
+  --issue-iron: #5F5E5A;
+  --issue-iron-bg: #F1EFE8;
+  --issue-planned: #7F77DD;
+  --issue-planned-bg: #EEEDFE;
+  --issue-other: #888780;
+  --issue-other-bg: #F1EFE8;
+
+  /* 공통 UI */
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #9a9a9a;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f3;
+  --bg-tertiary: #eeede8;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+}

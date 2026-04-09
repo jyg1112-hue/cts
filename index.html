@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>선석 운영 플랫폼</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Malgun Gothic", sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 24px;
+    }
+    .wrap { width: 100%; max-width: 1080px; }
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 18px;
+      color: #1a3a5c;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .menu-card {
+      display: block;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 18px 16px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .menu-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+    .card-emoji { font-size: 24px; margin-bottom: 8px; }
+    .card-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+    .card-sub { font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1 class="title">⚓ 선석 운영 플랫폼</h1>
+    <section class="grid">
+      <a href="/schedule" class="menu-card">
+        <div class="card-emoji">📅</div>
+        <div class="card-title">7선석 하역 스케줄</div>
+        <div class="card-sub">기준일 기반 스케줄 관리</div>
+      </a>
+      <a href="/banchu" class="menu-card">
+        <div class="card-emoji">🚢</div>
+        <div class="card-title">반출 스케줄</div>
+        <div class="card-sub">CW1/CW2/Silo 반출 계획</div>
+      </a>
+      <a href="/unloading_data" class="menu-card">
+        <div class="card-emoji">📊</div>
+        <div class="card-title">하역 데이터</div>
+        <div class="card-sub">실적 데이터 조회</div>
+      </a>
+      <a href="/yard" class="menu-card">
+        <div class="card-emoji">🏗️</div>
+        <div class="card-title">야드 현황/시뮬레이션</div>
+        <div class="card-sub">반입/반출 기반 야드 상태</div>
+      </a>
+    </section>
+  </main>
+</body>
+</html>

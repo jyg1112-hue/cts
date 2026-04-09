@@ -1,0 +1,35 @@
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tab-group,
+.year-group {
+  display: flex;
+  gap: 6px;
+}
+
+.tab-btn,
+.year-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab-btn.active,
+.year-btn.active {
+  background: var(--coal-primary);
+  color: #fff;
+  border-color: var(--coal-primary);
+}
+
+.brand-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 10px;
+}

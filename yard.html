@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>야드 시뮬레이션</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Malgun Gothic', sans-serif;
+  background: #f3f4f6;
+  color: #111827;
+  min-height: 100vh;
+}
+.app-header {
+  background: #1a3a5c;
+  color: #fff;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.app-header h1 { font-size: 18px; }
+.header-right { display: flex; gap: 8px; align-items: center; }
+.btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-blue { background: #2563eb; color: #fff; }
+.btn-gray { background: #6b7280; color: #fff; }
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 14px;
+}
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
+  border: 1px solid #e5e7eb;
+}
+.panel {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel h2 {
+  font-size: 14px;
+  color: #1a3a5c;
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; color: #374151; font-weight: 700; }
+.field input, .field select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 9px;
+  font-size: 13px;
+}
+.hint {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+.stat {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+}
+.stat .k { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+.stat .v { font-size: 18px; font-weight: 700; color: #1f2937; }
+.content { padding: 12px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+th, td {
+  border: 1px solid #e5e7eb;
+  padding: 7px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+th:first-child, td:first-child { text-align: left; }
+tbody tr:nth-child(even) { background: #fcfcfd; }
+.over td { background: #fef2f2; }
+.warn td { background: #fffbeb; }
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.badge.ok { background: #dcfce7; color: #166534; }
+.badge.warn { background: #fef3c7; color: #92400e; }
+.badge.over { background: #fee2e2; color: #991b1b; }
+.scroll { max-height: 68vh; overflow: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+@media (max-width: 1040px) {
+  .container { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <h1>야드 시뮬레이션 (프로토타입)</h1>
+    <div class="header-right">
+      <button class="btn btn-gray" onclick="location.href='/'">홈</button>
+      <button class="btn btn-blue" onclick="runSimulation()">시뮬레이션 실행</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card panel">
+      <h2>시뮬레이션 입력</h2>
+
+      <div class="field">
+        <label for="monthSel">조회 월</label>
+        <input id="monthSel" type="month">
+      </div>
+
+      <div class="field">
+        <label for="yardCapa">야드 CAPA (톤)</label>
+        <input id="yardCapa" type="number" step="1" value="200000">
+      </div>
+
+      <div class="field">
+        <label for="startStock">월초 재고 (톤)</label>
+        <input id="startStock" type="number" step="1" value="50000">
+      </div>
+
+      <div class="field">
+        <label for="defaultCoalTon">석탄 1척 기본 물량 (BL 미입력시, 톤)</label>
+        <input id="defaultCoalTon" type="number" step="1" value="60000">
+      </div>
+
+      <div class="field">
+        <label for="transshipOut">이적 반출 (톤/일)</label>
+        <input id="transshipOut" type="number" step="1" value="1200">
+      </div>
+
+      <div class="field">
+        <label for="landOut">육송반출 (톤/일)</label>
+        <input id="landOut" type="number" step="1" value="1800">
+      </div>
+
+      <div class="field">
+        <label for="seaOut">해송반출 (톤/일)</label>
+        <input id="seaOut" type="number" step="1" value="1600">
+      </div>
+
+      <p class="hint">
+        반입은 `7선석 하역 스케줄`(`berth7_v6`) 중 `cargoType=석탄`만 집계합니다.<br>
+        반출은 이적/육송반출/해송반출의 일 기준 값 합으로 계산합니다.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="stats" id="stats"></div>
+      <div class="content">
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>일자</th>
+                <th>반입(석탄)</th>
+                <th>이적</th>
+                <th>육송반출</th>
+                <th>해송반출</th>
+                <th>일 반출합</th>
+                <th>야드 재고</th>
+                <th>CAPA 사용률</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+const BERTH_KEY = 'berth7_v6';
+
+function toDateOnly(dt) {
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+function parseDT(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function num(id) {
+  return Number(document.getElementById(id).value || 0);
+}
+function fmt(n) {
+  return Math.round(n).toLocaleString('ko-KR');
+}
+function monthRange(monthStr) {
+  const now = new Date();
+  const [y, m] = (monthStr || '').split('-').map(Number);
+  const yy = Number.isFinite(y) ? y : now.getFullYear();
+  const mm = Number.isFinite(m) ? m - 1 : now.getMonth();
+  const start = new Date(yy, mm, 1);
+  const end = new Date(yy, mm + 1, 1);
+  return { start, end };
+}
+function dayKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function initMonthInput() {
+  const d = new Date();
+  const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  document.getElementById('monthSel').value = v;
+}
+
+function getCoalInboundByDay(monthStart, monthEnd) {
+  const raw = JSON.parse(localStorage.getItem(BERTH_KEY) || '[]');
+  const defaultTon = num('defaultCoalTon');
+  const dayMap = {};
+
+  raw
+    .filter(it => it && it.type === 'ship' && (it.cargoType || '').trim() === '석탄')
+    .forEach(it => {
+      const s0 = parseDT(it.start);
+      const e0 = parseDT(it.end);
+      if (!s0 || !e0 || e0 <= monthStart || s0 >= monthEnd) return;
+
+      const totalTon = Number(it.bl) > 0 ? Number(it.bl) : defaultTon;
+      const s = s0 < monthStart ? monthStart : s0;
+      const e = e0 > monthEnd ? monthEnd : e0;
+      const totalMs = e - s;
+      if (totalMs <= 0) return;
+
+      for (let d = toDateOnly(s); d < e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        const dayStart = d;
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const overlapStart = s > dayStart ? s : dayStart;
+        const overlapEnd = e < dayEnd ? e : dayEnd;
+        const overlapMs = overlapEnd - overlapStart;
+        if (overlapMs <= 0) continue;
+
+        const ratio = overlapMs / totalMs;
+        const inbound = totalTon * ratio;
+        const k = dayKey(dayStart);
+        dayMap[k] = (dayMap[k] || 0) + inbound;
+      }
+    });
+
+  return dayMap;
+}
+
+function runSimulation() {
+  const monthStr = document.getElementById('monthSel').value;
+  const { start, end } = monthRange(monthStr);
+  const capa = num('yardCapa');
+  const outTrans = num('transshipOut');
+  const outLand = num('landOut');
+  const outSea = num('seaOut');
+  const outDaily = outTrans + outLand + outSea;
+
+  const inboundMap = getCoalInboundByDay(start, end);
+  const tbody = document.getElementById('resultBody');
+  tbody.innerHTML = '';
+
+  let stock = num('startStock');
+  let maxStock = stock;
+  let minStock = stock;
+  let overDays = 0;
+  let warnDays = 0;
+  let totalIn = 0;
+  let totalOut = 0;
+
+  for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    const k = dayKey(d);
+    const inbound = inboundMap[k] || 0;
+    const outbound = outDaily;
+    totalIn += inbound;
+    totalOut += outbound;
+
+    stock = stock + inbound - outbound;
+    if (stock < 0) stock = 0;
+    maxStock = Math.max(maxStock, stock);
+    minStock = Math.min(minStock, stock);
+
+    const usage = capa > 0 ? (stock / capa) * 100 : 0;
+    let status = '정상';
+    let cls = '';
+    let badge = 'ok';
+    if (usage >= 100) {
+      status = 'CAPA 초과';
+      cls = 'over';
+      badge = 'over';
+      overDays++;
+    } else if (usage >= 90) {
+      status = '임계(90%+)';
+      cls = 'warn';
+      badge = 'warn';
+      warnDays++;
+    }
+
+    const tr = document.createElement('tr');
+    if (cls) tr.className = cls;
+    tr.innerHTML = `
+      <td>${k}</td>
+      <td>${fmt(inbound)}</td>
+      <td>${fmt(outTrans)}</td>
+      <td>${fmt(outLand)}</td>
+      <td>${fmt(outSea)}</td>
+      <td>${fmt(outbound)}</td>
+      <td><strong>${fmt(stock)}</strong></td>
+      <td>${usage.toFixed(1)}%</td>
+      <td><span class="badge ${badge}">${status}</span></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  const stats = document.getElementById('stats');
+  stats.innerHTML = `
+    <div class="stat"><div class="k">월 반입 합계(석탄)</div><div class="v">${fmt(totalIn)} 톤</div></div>
+    <div class="stat"><div class="k">월 반출 합계</div><div class="v">${fmt(totalOut)} 톤</div></div>
+    <div class="stat"><div class="k">최대 야드 재고</div><div class="v">${fmt(maxStock)} 톤</div></div>
+    <div class="stat"><div class="k">CAPA 리스크 일수</div><div class="v">${overDays}일 / 경고 ${warnDays}일</div></div>
+  `;
+}
+
+initMonthInput();
+runSimulation();
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이슈 이력</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <style>
+    .issue-page-grid { display: grid; gap: 12px; }
+    .issue-filters .category-group { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+    .category-btn {
+      border: 0.5px solid var(--border); background: var(--bg-primary); color: var(--text-secondary);
+      padding: 6px 10px; border-radius: var(--radius-sm); font-size: 11px; cursor: pointer;
+    }
+    .category-btn.active { border-color: var(--coal-primary); color: var(--coal-primary); font-weight: 600; }
+    .issue-stats-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .issue-stat-badge {
+      background: var(--bg-secondary); border-radius: 999px; padding: 6px 10px; font-size: 11px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .issue-list { display: grid; gap: 10px; }
+    .issue-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .issue-text.full { white-space: normal; }
+    .more-btn {
+      margin-top: 4px; border: none; background: transparent; color: var(--coal-primary);
+      font-size: 11px; cursor: pointer; padding: 0;
+    }
+    .load-more-wrap { display: flex; justify-content: center; padding-top: 6px; }
+    .brand-select, .keyword-input {
+      border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary);
+      color: var(--text-primary); font-size: 12px; padding: 7px 10px;
+    }
+    .keyword-input { min-width: 220px; }
+    .issue-empty { color: var(--text-secondary); font-size: 12px; padding: 8px 2px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-logo">⚓ 7선석</div>
+      <nav>
+        <ul class="menu-list">
+          <li><a class="menu-link" href="./index.html">대시보드</a></li>
+          <li><a class="menu-link active" href="./issue.html">이슈 이력</a></li>
+          <li><a class="menu-link" href="./index.html">데이터 가져오기</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="issue-page-grid">
+        <section class="issue-filters filter-bar card" style="padding:12px;">
+          <div class="cargo-tabs">
+            <button class="cargo-tab active" data-cargo="coal" type="button">석탄</button>
+            <button class="cargo-tab" data-cargo="nickel" type="button">니켈</button>
+          </div>
+          <div class="year-group">
+            <button class="year-btn" data-year="2023" type="button">2023</button>
+            <button class="year-btn" data-year="2024" type="button">2024</button>
+            <button class="year-btn active" data-year="2025" type="button">2025</button>
+            <button class="year-btn" data-year="all" type="button">전체누적</button>
+          </div>
+          <select id="brandSelect" class="brand-select" aria-label="브랜드 필터">
+            <option value="">브랜드 전체</option>
+          </select>
+          <div class="category-group" id="categoryGroup">
+            <button class="category-btn active" type="button" data-category="">전체</button>
+            <button class="category-btn" type="button" data-category="설비트러블">설비트러블</button>
+            <button class="category-btn" type="button" data-category="돌발정비">돌발정비</button>
+            <button class="category-btn" type="button" data-category="기상불량">기상불량</button>
+            <button class="category-btn" type="button" data-category="화물상태">화물상태</button>
+            <button class="category-btn" type="button" data-category="철편검출">철편검출</button>
+            <button class="category-btn" type="button" data-category="계획정비">계획정비</button>
+            <button class="category-btn" type="button" data-category="기타">기타</button>
+          </div>
+          <input id="keywordInput" class="keyword-input" placeholder="키워드 검색" />
+        </section>
+
+        <section class="card">
+          <div class="card-head">이슈 통계 요약</div>
+          <div class="card-body">
+            <div id="issueStatsRow" class="issue-stats-row"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">이슈 목록</div>
+          <div class="card-body">
+            <div id="issueList" class="issue-list"></div>
+            <div class="load-more-wrap">
+              <button id="loadMoreBtn" class="btn btn-gray" type="button">더 보기</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/parseXls.js"></script>
+  <script src="js/classifyIssue.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/issue.js"></script>
+</body>
+</html>

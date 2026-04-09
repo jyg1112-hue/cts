@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c start \"\" \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")",
+      "Bash(cmd.exe /c explorer \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")"
+    ]
+  }
+}

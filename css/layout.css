@@ -1,0 +1,46 @@
+body {
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  padding: 20px 14px;
+}
+
+.sidebar-logo {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-link {
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.menu-link.active {
+  background: var(--coal-bg);
+  color: var(--coal-primary);
+  font-weight: 700;
+}
+
+.main {
+  padding: 18px;
+}

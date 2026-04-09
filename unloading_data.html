@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>하역 데이터 대시보드</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --panel: #ffffff;
+      --panel-2: #f8fafc;
+      --line: #e5e7eb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --blue: #3b82f6;
+      --blue-light: #93c5fd;
+      --orange: #f59e0b;
+      --green: #10b981;
+      --danger: #ef4444;
+      --head: #1a3a5c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Malgun Gothic", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .app-header {
+      background: var(--head);
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border-bottom: 1px solid #15304a;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.2px;
+    }
+    .home-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: #fff;
+      border-radius: 0;
+      width: auto;
+      height: auto;
+      padding: 0;
+      font-size: 17px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .home-btn:hover { opacity: 0.9; }
+    .import-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .import-btn:hover { opacity: 0.9; }
+    .container { max-width: 1500px; margin: 0 auto; padding: 16px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+    }
+    .topbar {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr 0.8fr 2.2fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .row { display: flex; gap: 8px; }
+    .seg button {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      color: #374151;
+      padding: 7px 14px;
+      height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .seg button.active {
+      background: var(--head);
+      color: #fff;
+      border-color: var(--head);
+    }
+    select, .brand-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: #1f2937;
+      border-radius: 6px;
+      padding: 7px 10px;
+      height: 34px;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .kpi { padding: 16px; }
+    .kpi .label { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .kpi .value { font-size: 36px; font-weight: 800; line-height: 1.1; color: #111827; }
+    .kpi .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .chart-panel { padding: 16px; min-height: 420px; }
+    h2 { margin: 0 0 6px 0; font-size: 26px; color: var(--head); }
+    h3 { color: #1f2937; margin: 0 0 8px 0; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .legend { display: flex; gap: 16px; margin: 10px 0; color: var(--muted); font-size: 13px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+    .monthly-wrap {
+      height: 300px;
+      position: relative;
+      margin-top: 8px;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .monthly-axis {
+      position: absolute;
+      top: 8px;
+      bottom: 24px;
+      width: 52px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #6b7280;
+      pointer-events: none;
+    }
+    .monthly-axis.left { left: 4px; align-items: flex-end; padding-right: 6px; }
+    .monthly-axis.right { right: 4px; align-items: flex-start; padding-left: 6px; }
+    .monthly-plot-area {
+      position: absolute;
+      left: 52px;
+      right: 52px;
+      top: 8px;
+      bottom: 24px;
+      border-left: 1px solid #d1d5db;
+      border-bottom: 1px solid #d1d5db;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 0 8px 8px 8px;
+    }
+    .monthly-line-layer {
+      position: absolute;
+      left: 52px;
+      right: 52px;
+      top: 8px;
+      bottom: 24px;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .monthly-grid-line {
+      stroke: #e5e7eb;
+      stroke-width: 1;
+      shape-rendering: crispEdges;
+    }
+    .monthly-rate-line {
+      fill: none;
+      stroke: var(--orange);
+      stroke-width: 2.5;
+      stroke-linejoin: round;
+      stroke-linecap: butt;
+    }
+    .monthly-rate-dot {
+      fill: var(--orange);
+      stroke: #fff;
+      stroke-width: 1.5;
+    }
+    .month-col { flex: 1; min-width: 26px; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 2; }
+    .bars { width: 100%; display: flex; align-items: end; gap: 3px; height: 230px; }
+    .bar { flex: 1; border-radius: 4px 4px 0 0; }
+    .bar.current { background: var(--blue); }
+    .bar.prev { background: var(--blue-light); opacity: 0.75; }
+    .month-label { font-size: 12px; color: var(--muted); }
+    .issue-top { display: flex; gap: 12px; align-items: center; }
+    .donut { width: 180px; height: 180px; border-radius: 50%; position: relative; }
+    .donut::after {
+      content: "";
+      width: 96px;
+      height: 96px;
+      background: #ffffff;
+      border-radius: 50%;
+      position: absolute;
+      top: 42px;
+      left: 42px;
+      border: 1px solid var(--line);
+    }
+    .issue-list { flex: 1; display: grid; gap: 6px; }
+    .issue-item { display: flex; justify-content: space-between; font-size: 14px; }
+    .issue-bars { margin-top: 16px; display: grid; gap: 8px; }
+    .issue-bar-row { display: grid; grid-template-columns: 110px 1fr 56px; align-items: center; gap: 8px; }
+    .issue-bar-track { background: #f3f4f6; border-radius: 999px; height: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+    .issue-bar-fill { background: var(--orange); height: 100%; border-radius: 999px; }
+    .table-panel { padding: 14px; }
+    .brand-detail-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.3fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .brand-chart-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+    }
+    .brand-chart-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .brand-chart-head h4 {
+      margin: 0;
+      font-size: 16px;
+      color: #1f2937;
+    }
+    .brand-chart-unit {
+      font-size: 12px;
+      color: #6b7280;
+      font-weight: 700;
+    }
+    .brand-rate-list {
+      display: grid;
+      gap: 8px;
+    }
+    .brand-rate-row {
+      display: grid;
+      grid-template-columns: 112px 1fr 62px;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-rate-name {
+      font-size: 13px;
+      color: #374151;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .brand-rate-track {
+      height: 12px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+      border: 1px solid #d1d5db;
+    }
+    .brand-rate-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #10b981, #059669);
+    }
+    .brand-rate-value {
+      font-size: 12px;
+      color: #374151;
+      text-align: right;
+      font-weight: 700;
+    }
+    .brand-table-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+    }
+    .upload-help { color: var(--muted); font-size: 12px; }
+    .upload-btn {
+      border: 1px solid var(--line);
+      background: var(--head);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .uploaded-files { color: #374151; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th { color: #374151; font-size: 13px; background: #f8fafc; }
+    .sortable-th {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .sortable-th:hover { background: #eef2f7; }
+    .sort-indicator {
+      margin-left: 4px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+    .empty { color: var(--muted); padding: 20px; text-align: center; }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      width: 520px;
+      max-width: 92vw;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 18px;
+    }
+    .modal h3 { margin: 0 0 10px 0; color: var(--head); }
+    .modal-footer {
+      margin-top: 14px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-uploaded-wrap {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .modal-uploaded-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .modal-uploaded-table {
+      width: 100%;
+      border-collapse: collapse;
+      max-height: 140px;
+      color: #374151;
+      font-size: 12px;
+    }
+    .modal-uploaded-table thead th {
+      text-align: left;
+      color: #6b7280;
+      padding: 6px 4px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f8fafc;
+      font-size: 11px;
+    }
+    .modal-uploaded-table tbody td {
+      padding: 6px 4px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .modal-uploaded-scroll {
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #eef2f7;
+      border-radius: 6px;
+    }
+    .file-delete-btn {
+      border: none;
+      background: #ef4444;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .file-delete-btn:hover { opacity: 0.9; }
+    .modal-uploaded-empty {
+      color: #6b7280;
+      font-size: 13px;
+    }
+    .modal-btn {
+      border: none;
+      border-radius: 5px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .modal-btn.cancel { background: #6b7280; color: #fff; }
+    .modal-btn.submit { background: #2563eb; color: #fff; }
+    @media (max-width: 1100px) {
+      .topbar { grid-template-columns: 1fr 1fr; }
+      .kpis { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+      .main-grid { grid-template-columns: 1fr; }
+      .brand-detail-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <a href="/" class="home-btn" title="홈">🏠</a>
+      <div class="header-title">하역 데이터 대시보드</div>
+    </div>
+    <div class="header-actions">
+      <button id="open-upload-modal-btn" class="import-btn" type="button">Import</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="uploaded-files" class="uploaded-files" style="margin-bottom:10px;"></div>
+
+    <section class="panel topbar">
+      <div class="field">
+        <label>화물</label>
+        <div class="seg row">
+          <button id="cargo-coal" class="active">석탄</button>
+          <button id="cargo-nickel">니켈</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>시작 연도</label>
+        <select id="start-year"></select>
+      </div>
+      <div class="field">
+        <label>종료 연도</label>
+        <select id="end-year"></select>
+      </div>
+      <div class="field">
+        <label>브랜드</label>
+        <input id="brands" class="brand-input" placeholder="예: 석탄(인니), 석탄(러시아)" />
+      </div>
+    </section>
+
+    <section class="kpis">
+      <article class="panel kpi">
+        <div class="label">총 하역량</div>
+        <div id="kpi-volume" class="value">0 t</div>
+        <div class="sub">선택 범위 합계</div>
+      </article>
+      <article class="panel kpi">
+        <div class="label">총 척수</div>
+        <div id="kpi-vessels" class="value">0 척</div>
+        <div class="sub">중복 선박 제외</div>
+      </article>
+      <article class="panel kpi">
+        <div class="label">평균 하역률</div>
+        <div id="kpi-rate" class="value">0 t/d</div>
+        <div class="sub">원본 시트 하역율 평균</div>
+      </article>
+      <article class="panel kpi">
+        <div class="label">이슈 발생 건수</div>
+        <div id="kpi-issues" class="value">0 건</div>
+        <div class="sub">비고 자동 분류 기준</div>
+      </article>
+    </section>
+
+    <section class="main-grid">
+      <article class="panel chart-panel">
+        <h3>월별 하역량 & 평균 하역률</h3>
+        <div class="legend">
+          <div><span class="dot" style="background:var(--blue)"></span>현재 선택 기간 하역량</div>
+          <div><span class="dot" style="background:var(--blue-light)"></span>직전 연도 하역량</div>
+          <div><span class="dot" style="background:var(--orange)"></span>하역률(t/d)</div>
+        </div>
+        <div id="chart-monthly" class="monthly-wrap"></div>
+      </article>
+
+      <article class="panel chart-panel">
+        <h3>이슈 카테고리 분포</h3>
+        <div class="issue-top">
+          <div id="chart-issues" class="donut"></div>
+          <div id="issue-list" class="issue-list"></div>
+        </div>
+        <div id="issue-bars" class="issue-bars"></div>
+      </article>
+    </section>
+
+    <section class="panel table-panel">
+      <h3>브랜드 별 상세 현황</h3>
+      <div class="brand-detail-grid">
+        <div class="brand-chart-card">
+          <div class="brand-chart-head">
+            <h4 id="brand-rate-title">브랜드별 평균 하역률</h4>
+            <span class="brand-chart-unit">ton/day</span>
+          </div>
+          <div id="brand-rate-list" class="brand-rate-list"></div>
+        </div>
+        <div class="brand-table-card">
+          <table>
+            <thead>
+              <tr>
+                <th id="brand-col-label" class="sortable-th" data-sort-key="brand">브랜드<span id="sort-brand" class="sort-indicator"></span></th>
+                <th class="sortable-th" data-sort-key="volume_ton">하역량(톤)<span id="sort-volume_ton" class="sort-indicator"></span></th>
+                <th class="sortable-th" data-sort-key="avg_unloading_rate">평균 하역률<span id="sort-avg_unloading_rate" class="sort-indicator"></span></th>
+                <th class="sortable-th" data-sort-key="vessel_count">척수<span id="sort-vessel_count" class="sort-indicator"></span></th>
+                <th class="sortable-th" data-sort-key="issue_count">이슈건수<span id="sort-issue_count" class="sort-indicator"></span></th>
+                <th class="sortable-th" data-sort-key="top_issue">대표 이슈<span id="sort-top_issue" class="sort-indicator"></span></th>
+              </tr>
+            </thead>
+            <tbody id="brand-table-body"></tbody>
+          </table>
+          <div id="table-empty" class="empty" style="display:none;">조회 결과가 없습니다.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="upload-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
+    <div class="modal">
+      <h3 id="upload-modal-title">하역률 엑셀 Import</h3>
+      <div class="upload-help" style="margin-bottom:10px;">파일명은 연도를 포함해 주세요. 저장 규칙: <b>YYYY_하역률.xls(x)</b></div>
+      <input id="excel-file-input" type="file" accept=".xls,.xlsx" style="width:100%;" />
+      <div class="modal-uploaded-wrap">
+        <div class="modal-uploaded-title">현재 업로드 파일</div>
+        <div id="modal-uploaded-empty" class="modal-uploaded-empty">업로드된 파일이 없습니다.</div>
+        <div id="modal-uploaded-scroll" class="modal-uploaded-scroll" style="display:none;">
+          <table class="modal-uploaded-table">
+            <thead>
+              <tr>
+                <th style="width:55%;">파일명</th>
+                <th style="width:30%;">업로드일시</th>
+                <th style="width:15%;">관리</th>
+              </tr>
+            </thead>
+            <tbody id="modal-uploaded-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="close-upload-modal-btn" class="modal-btn cancel" type="button">취소</button>
+        <button id="upload-btn" class="modal-btn submit" type="button">업로드</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      cargoType: "coal",
+      years: [],
+      brandsMeta: { coal: [], nickel: [] },
+      uploadedFiles: [],
+      uploadedFileDetails: [],
+      startYear: null,
+      endYear: null,
+      selectedBrandsInput: "",
+      sortKey: "volume_ton",
+      sortDir: "desc",
+      summary: null
+    };
+
+    const issuePalette = ["#d86b36", "#9ca3af", "#c58a22", "#66b123", "#2f87d8", "#f8f8f8", "#8a5cf6", "#4b5563"];
+
+    function formatNumber(num, decimals = 0) {
+      return Number(num || 0).toLocaleString("ko-KR", { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+    }
+
+    function buildAxis(maxValue, tickCount = 5) {
+      const safeMax = Math.max(0, Number(maxValue) || 0);
+      const rawStep = safeMax / Math.max(1, tickCount - 1);
+      const step = Math.max(1000, Math.ceil(rawStep / 1000) * 1000);
+      const axisMax = step * Math.max(1, tickCount - 1);
+      const ticks = [];
+      for (let i = 0; i < tickCount; i += 1) {
+        ticks.push(axisMax - (step * i));
+      }
+      return { axisMax, step, ticks };
+    }
+
+    async function fetchMeta() {
+      const resp = await fetch("/api/unloading-data/meta");
+      if (!resp.ok) throw new Error("메타 데이터 로딩 실패");
+      return resp.json();
+    }
+
+    async function fetchSummary() {
+      const params = new URLSearchParams();
+      params.set("cargo_type", state.cargoType);
+      if (state.startYear) params.set("start_year", String(state.startYear));
+      if (state.endYear) params.set("end_year", String(state.endYear));
+      if (state.selectedBrandsInput.trim()) params.set("brands", state.selectedBrandsInput.trim());
+      const resp = await fetch(`/api/unloading-data/summary?${params.toString()}`);
+      if (!resp.ok) throw new Error("요약 데이터 로딩 실패");
+      return resp.json();
+    }
+
+    async function uploadExcelFile(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/unloading-data/upload", {
+        method: "POST",
+        body: formData
+      });
+      if (!resp.ok) {
+        let detail = "업로드 실패";
+        try {
+          const body = await resp.json();
+          detail = body.detail || detail;
+        } catch (_) {}
+        throw new Error(detail);
+      }
+      return resp.json();
+    }
+
+    async function deleteExcelFile(fileName) {
+      const resp = await fetch(`/api/unloading-data/upload/${encodeURIComponent(fileName)}`, {
+        method: "DELETE"
+      });
+      if (!resp.ok) {
+        let detail = "삭제 실패";
+        try {
+          const body = await resp.json();
+          detail = body.detail || detail;
+        } catch (_) {}
+        throw new Error(detail);
+      }
+      return resp.json();
+    }
+
+    function formatUnixTime(sec) {
+      if (!sec) return "-";
+      const d = new Date(sec * 1000);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function renderUploadedFiles() {
+      const el = document.getElementById("uploaded-files");
+      if (!state.uploadedFiles.length) {
+        el.textContent = "업로드 파일: 없음 (기본 샘플 파일 사용)";
+      } else {
+        el.textContent = `업로드 파일: ${state.uploadedFiles.join(", ")}`;
+      }
+
+      const modalBody = document.getElementById("modal-uploaded-tbody");
+      const modalEmpty = document.getElementById("modal-uploaded-empty");
+      const modalScroll = document.getElementById("modal-uploaded-scroll");
+      if (!modalBody || !modalEmpty || !modalScroll) return;
+      modalBody.innerHTML = "";
+      if (!state.uploadedFiles.length) {
+        modalScroll.style.display = "none";
+        modalEmpty.style.display = "block";
+        return;
+      }
+      modalEmpty.style.display = "none";
+      modalScroll.style.display = "block";
+      const details = state.uploadedFileDetails.length
+        ? state.uploadedFileDetails
+        : state.uploadedFiles.map((name) => ({ name, updated_at: null }));
+      details.forEach((item) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td title="${item.name}">${item.name}</td>
+          <td>${formatUnixTime(item.updated_at)}</td>
+          <td><button class="file-delete-btn" type="button" data-file-name="${item.name}">삭제</button></td>
+        `;
+        modalBody.appendChild(tr);
+      });
+    }
+
+    function renderYearSelects() {
+      const startEl = document.getElementById("start-year");
+      const endEl = document.getElementById("end-year");
+      startEl.innerHTML = "";
+      endEl.innerHTML = "";
+      state.years.forEach((y) => {
+        const s = document.createElement("option");
+        s.value = y; s.textContent = y;
+        const e = s.cloneNode(true);
+        startEl.appendChild(s);
+        endEl.appendChild(e);
+      });
+      if (!state.startYear || !state.endYear) {
+        const years = state.years;
+        if (!years.length) return;
+        state.endYear = years[years.length - 1];
+        state.startYear = years[Math.max(0, years.length - 3)];
+      }
+      startEl.value = String(state.startYear);
+      endEl.value = String(state.endYear);
+    }
+
+    function renderKpis() {
+      const k = state.summary?.kpis || {};
+      document.getElementById("kpi-volume").textContent = `${formatNumber(k.total_volume_ton)} t`;
+      document.getElementById("kpi-vessels").textContent = `${formatNumber(k.total_vessels)} 척`;
+      document.getElementById("kpi-rate").textContent = `${formatNumber(k.avg_unloading_rate, 0)} t/d`;
+      document.getElementById("kpi-issues").textContent = `${formatNumber(k.issue_count)} 건`;
+    }
+
+    function renderMonthlyChart() {
+      const wrap = document.getElementById("chart-monthly");
+      wrap.innerHTML = "";
+      const monthly = state.summary?.monthly || [];
+      if (!monthly.length) {
+        wrap.innerHTML = '<div class="empty" style="width:100%;">월별 데이터가 없습니다.</div>';
+        return;
+      }
+
+      const currentYear = state.endYear;
+      const prevYear = currentYear - 1;
+      const currentByMonth = {};
+      const prevByMonth = {};
+      monthly.forEach((m) => {
+        if (m.year === currentYear) currentByMonth[m.month] = m;
+        if (m.year === prevYear) prevByMonth[m.month] = m;
+      });
+      const maxVolRaw = Math.max(
+        1,
+        ...Object.values(currentByMonth).map((x) => x.volume_ton),
+        ...Object.values(prevByMonth).map((x) => x.volume_ton)
+      );
+      const maxRateRaw = Math.max(1, ...Object.values(currentByMonth).map((x) => x.avg_unloading_rate || 0));
+      const leftAxisData = buildAxis(maxVolRaw, 5);
+      const rightAxisData = buildAxis(maxRateRaw, 5);
+
+      const leftAxis = document.createElement("div");
+      leftAxis.className = "monthly-axis left";
+      leftAxisData.ticks.forEach((value) => {
+        const t = document.createElement("div");
+        t.textContent = `${formatNumber(value, 0)}`;
+        leftAxis.appendChild(t);
+      });
+      wrap.appendChild(leftAxis);
+
+      const rightAxis = document.createElement("div");
+      rightAxis.className = "monthly-axis right";
+      rightAxisData.ticks.forEach((value) => {
+        const t = document.createElement("div");
+        t.textContent = `${formatNumber(value, 0)}`;
+        rightAxis.appendChild(t);
+      });
+      wrap.appendChild(rightAxis);
+
+      const plotArea = document.createElement("div");
+      plotArea.className = "monthly-plot-area";
+      wrap.appendChild(plotArea);
+      const lineLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      lineLayer.setAttribute("class", "monthly-line-layer");
+      wrap.appendChild(lineLayer);
+
+      for (let month = 1; month <= 12; month += 1) {
+        const col = document.createElement("div");
+        col.className = "month-col";
+        const bars = document.createElement("div");
+        bars.className = "bars";
+        const curr = currentByMonth[month];
+        const prev = prevByMonth[month];
+        const prevBar = document.createElement("div");
+        prevBar.className = "bar prev";
+        prevBar.style.height = `${((prev?.volume_ton || 0) / leftAxisData.axisMax) * 100}%`;
+        const curBar = document.createElement("div");
+        curBar.className = "bar current";
+        curBar.style.height = `${((curr?.volume_ton || 0) / leftAxisData.axisMax) * 100}%`;
+        bars.appendChild(prevBar);
+        bars.appendChild(curBar);
+        const label = document.createElement("div");
+        label.className = "month-label";
+        label.textContent = `${month}월`;
+        col.appendChild(bars);
+        col.appendChild(label);
+        plotArea.appendChild(col);
+      }
+
+      const plotRect = plotArea.getBoundingClientRect();
+      const width = Math.max(1, plotRect.width);
+      const height = Math.max(1, plotRect.height);
+      lineLayer.setAttribute("width", String(width));
+      lineLayer.setAttribute("height", String(height));
+      lineLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+      leftAxisData.ticks.forEach((tickValue) => {
+        const y = height - ((tickValue / leftAxisData.axisMax) * height);
+        const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        grid.setAttribute("x1", "0");
+        grid.setAttribute("x2", String(width));
+        grid.setAttribute("y1", String(y));
+        grid.setAttribute("y2", String(y));
+        grid.setAttribute("class", "monthly-grid-line");
+        lineLayer.appendChild(grid);
+      });
+
+      const monthCols = Array.from(plotArea.querySelectorAll(".month-col"));
+      const ratePoints = [];
+      monthCols.forEach((col, idx) => {
+        const month = idx + 1;
+        const data = currentByMonth[month];
+        if (!data) return;
+        const rateVal = Number(data.avg_unloading_rate || 0);
+        if (!Number.isFinite(rateVal)) return;
+        const colRect = col.getBoundingClientRect();
+        const x = (colRect.left + (colRect.width / 2)) - plotRect.left;
+        const y = height - ((rateVal / rightAxisData.axisMax) * height);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const xClamped = Math.max(0, Math.min(width, x));
+        const yClamped = Math.max(0, Math.min(height, y));
+        ratePoints.push({ x: xClamped, y: yClamped });
+      });
+
+      // 마지막 점(12월) 이후로 이어지는 아티팩트 방지를 위해 x 기준 정렬/중복 제거
+      ratePoints.sort((a, b) => a.x - b.x);
+      const cleanedRatePoints = [];
+      let prevX = null;
+      ratePoints.forEach((p) => {
+        if (prevX === null || Math.abs(p.x - prevX) > 0.01) {
+          cleanedRatePoints.push(p);
+          prevX = p.x;
+        }
+      });
+
+      if (cleanedRatePoints.length >= 2) {
+        const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+        polyline.setAttribute("points", cleanedRatePoints.map((p) => `${p.x},${p.y}`).join(" "));
+        polyline.setAttribute("class", "monthly-rate-line");
+        lineLayer.appendChild(polyline);
+      }
+
+      cleanedRatePoints.forEach((p) => {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", String(p.x));
+        c.setAttribute("cy", String(p.y));
+        c.setAttribute("r", "4");
+        c.setAttribute("class", "monthly-rate-dot");
+        lineLayer.appendChild(c);
+      });
+    }
+
+    function renderIssues() {
+      const issues = state.summary?.issue_breakdown || [];
+      const total = issues.reduce((acc, x) => acc + x.count, 0) || 1;
+      const donutEl = document.getElementById("chart-issues");
+      const listEl = document.getElementById("issue-list");
+      const barsEl = document.getElementById("issue-bars");
+      listEl.innerHTML = "";
+      barsEl.innerHTML = "";
+
+      let start = 0;
+      const slices = issues
+        .filter((x) => x.count > 0)
+        .map((it, idx) => {
+          const ratio = (it.count / total) * 100;
+          const color = issuePalette[idx % issuePalette.length];
+          const end = start + ratio;
+          const s = `${color} ${start}% ${end}%`;
+          start = end;
+          return { ...it, ratio, color, segment: s };
+        });
+      donutEl.style.background = slices.length ? `conic-gradient(${slices.map((s) => s.segment).join(",")})` : "#2b313a";
+
+      const topList = [...issues].sort((a, b) => b.count - a.count).slice(0, 6);
+      topList.forEach((it, idx) => {
+        const item = document.createElement("div");
+        item.className = "issue-item";
+        item.innerHTML = `<span><span class="dot" style="background:${issuePalette[idx % issuePalette.length]}"></span>${it.category}</span><b>${it.count}</b>`;
+        listEl.appendChild(item);
+      });
+
+      const max = Math.max(1, ...issues.map((x) => x.count));
+      topList.forEach((it) => {
+        const row = document.createElement("div");
+        row.className = "issue-bar-row";
+        const percent = (it.count / max) * 100;
+        row.innerHTML = `
+          <div>${it.category}</div>
+          <div class="issue-bar-track"><div class="issue-bar-fill" style="width:${percent}%"></div></div>
+          <div style="text-align:right;">${it.count}건</div>
+        `;
+        barsEl.appendChild(row);
+      });
+    }
+
+    function renderBrandTable() {
+      const body = document.getElementById("brand-table-body");
+      const empty = document.getElementById("table-empty");
+      body.innerHTML = "";
+      const rows = [...(state.summary?.brand_table || [])];
+      const { sortKey, sortDir } = state;
+      rows.sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        const aNum = typeof av === "number";
+        const bNum = typeof bv === "number";
+        let cmp = 0;
+        if (aNum && bNum) cmp = av - bv;
+        else cmp = String(av ?? "").localeCompare(String(bv ?? ""), "ko");
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+
+      document.querySelectorAll(".sort-indicator").forEach((el) => { el.textContent = ""; });
+      const activeIndicator = document.getElementById(`sort-${sortKey}`);
+      if (activeIndicator) activeIndicator.textContent = sortDir === "asc" ? "▲" : "▼";
+
+      if (!rows.length) {
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+      rows.forEach((r) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.brand}</td>
+          <td>${formatNumber(r.volume_ton)}</td>
+          <td>${formatNumber(r.avg_unloading_rate)} t/d</td>
+          <td>${formatNumber(r.vessel_count)}</td>
+          <td>${formatNumber(r.issue_count)}</td>
+          <td>${r.top_issue}</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    function renderBrandRateChart() {
+      const wrap = document.getElementById("brand-rate-list");
+      const titleEl = document.getElementById("brand-rate-title");
+      const brandColLabel = document.getElementById("brand-col-label");
+      if (!wrap) return;
+      if (titleEl) {
+        titleEl.textContent = state.cargoType === "coal" ? "산지별 평균 하역률" : "브랜드별 평균 하역률";
+      }
+      if (brandColLabel) {
+        brandColLabel.childNodes[0].textContent = state.cargoType === "coal" ? "산지" : "브랜드";
+      }
+      wrap.innerHTML = "";
+      const rows = [...(state.summary?.brand_table || [])];
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty" style="padding:10px 0;">그래프 데이터가 없습니다.</div>';
+        return;
+      }
+      const topRows = rows
+        .sort((a, b) => b.avg_unloading_rate - a.avg_unloading_rate)
+        .slice(0, 8);
+      const maxRate = Math.max(1, ...topRows.map((r) => r.avg_unloading_rate || 0));
+      topRows.forEach((r) => {
+        const percent = ((r.avg_unloading_rate || 0) / maxRate) * 100;
+        const rowEl = document.createElement("div");
+        rowEl.className = "brand-rate-row";
+        rowEl.innerHTML = `
+          <div class="brand-rate-name" title="${r.brand}">${r.brand}</div>
+          <div class="brand-rate-track"><div class="brand-rate-fill" style="width:${percent}%"></div></div>
+          <div class="brand-rate-value">${formatNumber(r.avg_unloading_rate, 0)}</div>
+        `;
+        wrap.appendChild(rowEl);
+      });
+    }
+
+    function renderAll() {
+      renderKpis();
+      renderMonthlyChart();
+      renderIssues();
+      renderBrandRateChart();
+      renderBrandTable();
+    }
+
+    function wireEvents() {
+      const coalBtn = document.getElementById("cargo-coal");
+      const nickelBtn = document.getElementById("cargo-nickel");
+      const startYear = document.getElementById("start-year");
+      const endYear = document.getElementById("end-year");
+      const brands = document.getElementById("brands");
+      const fileInput = document.getElementById("excel-file-input");
+      const uploadBtn = document.getElementById("upload-btn");
+      const openUploadModalBtn = document.getElementById("open-upload-modal-btn");
+      const closeUploadModalBtn = document.getElementById("close-upload-modal-btn");
+      const uploadModal = document.getElementById("upload-modal");
+      const sortableHeaders = document.querySelectorAll(".sortable-th");
+      const modalUploadedTbody = document.getElementById("modal-uploaded-tbody");
+
+      openUploadModalBtn.addEventListener("click", () => {
+        uploadModal.classList.add("show");
+      });
+      closeUploadModalBtn.addEventListener("click", () => {
+        uploadModal.classList.remove("show");
+      });
+      uploadModal.addEventListener("click", (e) => {
+        if (e.target === uploadModal) uploadModal.classList.remove("show");
+      });
+      modalUploadedTbody.addEventListener("click", async (e) => {
+        const target = e.target;
+        if (!target.classList.contains("file-delete-btn")) return;
+        const fileName = target.dataset.fileName;
+        if (!fileName) return;
+        if (!confirm(`삭제할까요?\n${fileName}`)) return;
+        try {
+          const result = await deleteExcelFile(fileName);
+          state.uploadedFiles = result.uploaded_files || [];
+          state.uploadedFileDetails = result.uploaded_file_details || [];
+          renderUploadedFiles();
+          const meta = await fetchMeta();
+          state.years = meta.years || [];
+          state.brandsMeta = meta.brands || { coal: [], nickel: [] };
+          state.uploadedFiles = meta.uploaded_files || state.uploadedFiles;
+          state.uploadedFileDetails = meta.uploaded_file_details || state.uploadedFileDetails;
+          state.startYear = null;
+          state.endYear = null;
+          await refreshSummary();
+        } catch (error) {
+          alert(error.message || "삭제 중 오류가 발생했습니다.");
+        }
+      });
+
+      coalBtn.addEventListener("click", async () => {
+        state.cargoType = "coal";
+        coalBtn.classList.add("active");
+        nickelBtn.classList.remove("active");
+        brands.placeholder = "예: 석탄(인니), 석탄(러시아)";
+        await refreshSummary();
+      });
+      nickelBtn.addEventListener("click", async () => {
+        state.cargoType = "nickel";
+        nickelBtn.classList.add("active");
+        coalBtn.classList.remove("active");
+        brands.placeholder = "예: Ngo, Ouaco";
+        await refreshSummary();
+      });
+      startYear.addEventListener("change", async (e) => {
+        state.startYear = Number(e.target.value);
+        if (state.startYear > state.endYear) state.endYear = state.startYear;
+        await refreshSummary();
+      });
+      endYear.addEventListener("change", async (e) => {
+        state.endYear = Number(e.target.value);
+        if (state.endYear < state.startYear) state.startYear = state.endYear;
+        await refreshSummary();
+      });
+      brands.addEventListener("change", async (e) => {
+        state.selectedBrandsInput = e.target.value || "";
+        await refreshSummary();
+      });
+      sortableHeaders.forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.dataset.sortKey;
+          if (!key) return;
+          if (state.sortKey === key) {
+            state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+          } else {
+            state.sortKey = key;
+            state.sortDir = "asc";
+          }
+          renderBrandTable();
+        });
+      });
+      uploadBtn.addEventListener("click", async () => {
+        try {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) {
+            alert("업로드할 엑셀 파일을 먼저 선택해주세요.");
+            return;
+          }
+          uploadBtn.disabled = true;
+          uploadBtn.textContent = "업로드 중...";
+          const result = await uploadExcelFile(file);
+          state.uploadedFiles = result.uploaded_files || [];
+          state.uploadedFileDetails = result.uploaded_file_details || [];
+          renderUploadedFiles();
+          const meta = await fetchMeta();
+          state.years = meta.years || [];
+          state.brandsMeta = meta.brands || { coal: [], nickel: [] };
+          state.uploadedFiles = meta.uploaded_files || state.uploadedFiles;
+          state.uploadedFileDetails = meta.uploaded_file_details || state.uploadedFileDetails;
+          state.startYear = null;
+          state.endYear = null;
+          await refreshSummary();
+          fileInput.value = "";
+          uploadModal.classList.remove("show");
+          alert(`업로드 완료: ${result.saved_as}`);
+        } catch (error) {
+          alert(error.message || "업로드 중 오류가 발생했습니다.");
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "하역률 엑셀 업로드";
+        }
+      });
+    }
+
+    async function refreshSummary() {
+      try {
+        state.summary = await fetchSummary();
+        renderYearSelects();
+        renderAll();
+      } catch (error) {
+        console.error(error);
+        alert("데이터 조회 중 오류가 발생했습니다.");
+      }
+    }
+
+    async function init() {
+      try {
+        const meta = await fetchMeta();
+        state.years = meta.years || [];
+        state.brandsMeta = meta.brands || { coal: [], nickel: [] };
+        state.uploadedFiles = meta.uploaded_files || [];
+        state.uploadedFileDetails = meta.uploaded_file_details || [];
+        renderUploadedFiles();
+        renderYearSelects();
+        wireEvents();
+        await refreshSummary();
+      } catch (error) {
+        console.error(error);
+        alert("초기화 실패: API 상태를 확인해주세요.");
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
