@@ -22,6 +22,7 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 .app-header h1 { font-size: 18px; }
+.header-left { display: flex; gap: 10px; align-items: center; }
 .header-right { display: flex; gap: 8px; align-items: center; }
 .btn {
   border: none;
@@ -127,9 +128,11 @@ tbody tr:nth-child(even) { background: #fcfcfd; }
 </head>
 <body>
   <header class="app-header">
-    <h1>야드 시뮬레이션 (프로토타입)</h1>
+    <div class="header-left">
+      <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
+      <h1>야드 시뮬레이션 (프로토타입)</h1>
+    </div>
     <div class="header-right">
-      <button class="btn btn-gray" onclick="location.href='/'">홈</button>
       <button class="btn btn-blue" onclick="runSimulation()">시뮬레이션 실행</button>
     </div>
   </header>

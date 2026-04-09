@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>날씨 위젯 디자인 목업</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111827;
+    font-family: "Malgun Gothic", -apple-system, sans-serif;
+    padding: 24px;
+    color: #fff;
+  }
+  .page-label {
+    font-size: 11px;
+    color: #6b7280;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* Dashboard shell */
+  .dash-header {
+    background: #1a3a5c;
+    border-radius: 10px 10px 0 0;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dash-header-title { font-size: 15px; font-weight: 700; color: #fff; }
+  .dash-body {
+    background: #f0f2f5;
+    border-radius: 0 0 10px 10px;
+    padding: 14px;
+  }
+
+  /* KPI row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .kpi-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .kpi-label { font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+  .kpi-value { font-size: 24px; font-weight: 800; color: #111827; }
+  .kpi-sub { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+  }
+  .chart-panel {
+    padding: 16px;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 12px;
+  }
+  .chart-placeholder {
+    flex: 1;
+    background: #f8fafc;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #d1d5db;
+    font-size: 12px;
+  }
+
+  /* Weather panel */
+  .weather-panel {
+    background: linear-gradient(155deg, #0c1e35 0%, #0f2d4a 40%, #0d3d6b 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    overflow: hidden;
+    position: relative;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+  }
+  .weather-header {
+    padding: 12px 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .weather-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.3px;
+  }
+  .weather-badge {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.07);
+    border-radius: 20px;
+    padding: 2px 8px;
+  }
+
+  /* SVG Map area */
+  .map-area {
+    flex: 1;
+    position: relative;
+    padding: 10px 12px;
+  }
+
+  /* Mine tooltip (hover state demo) */
+  .mine-tooltip {
+    position: absolute;
+    top: 22px;
+    left: 62%;
+    background: rgba(5, 15, 30, 0.92);
+    border: 1px solid rgba(99, 179, 237, 0.4);
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: 120px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    pointer-events: none;
+    z-index: 10;
+  }
+  .tooltip-mine-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: #60a5fa;
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .tooltip-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 0;
+  }
+  .tooltip-day { font-size: 10px; color: rgba(255,255,255,0.5); width: 26px; }
+  .tooltip-icon { font-size: 11px; }
+  .tooltip-temp { font-size: 11px; font-weight: 700; color: #fff; margin-left: auto; }
+  .tooltip-condition { font-size: 9px; color: rgba(255,255,255,0.45); margin-left: 2px; }
+
+  /* Connector line from tooltip to marker */
+  .connector {
+    position: absolute;
+    top: 60px;
+    left: calc(62% - 2px);
+    width: 1px;
+    height: 30px;
+    background: linear-gradient(to bottom, rgba(99,179,237,0.4), transparent);
+    z-index: 5;
+  }
+
+  /* Bottom update bar */
+  .weather-footer {
+    padding: 7px 14px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-text { font-size: 10px; color: rgba(255,255,255,0.3); }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    display: inline-block;
+    margin-right: 5px;
+    box-shadow: 0 0 0 2px rgba(16,185,129,0.2);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-label">디자인 목업 — 하역 데이터 대시보드</div>
+
+<!-- Dashboard shell -->
+<div>
+  <div class="dash-header">
+    <span class="dash-header-title">⚓ 하역 데이터 대시보드</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);">2026-04-08</span>
+  </div>
+  <div class="dash-body">
+
+    <!-- KPI row -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">총 하역량</div>
+        <div class="kpi-value">14,280<span style="font-size:14px;font-weight:400;color:#9ca3af;">t</span></div>
+        <div class="kpi-sub">↑ 전월 대비 +3.2%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">가동 선석</div>
+        <div class="kpi-value">5<span style="font-size:14px;font-weight:400;color:#9ca3af;">/7</span></div>
+        <div class="kpi-sub">2선석 유지보수</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">평균 하역속도</div>
+        <div class="kpi-value">840<span style="font-size:14px;font-weight:400;color:#9ca3af;">t/h</span></div>
+        <div class="kpi-sub">목표 대비 97%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">대기 선박</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-sub">입항 예정 3척</div>
+      </div>
+    </div>
+
+    <!-- Main 3-col grid -->
+    <div class="main-grid">
+
+      <!-- Chart 1 -->
+      <div class="panel chart-panel">
+        <div class="panel-title">월별 하역량 추이</div>
+        <div class="chart-placeholder">차트 영역</div>
+      </div>
+
+      <!-- Chart 2 -->
+      <div class="panel chart-panel">
+        <div class="panel-title">화물 타입별 비중</div>
+        <div class="chart-placeholder">차트 영역</div>
+      </div>
+
+      <!-- Weather Widget -->
+      <div class="weather-panel">
+        <div class="weather-header">
+          <span class="weather-title">🌏 뉴칼레도니아 광산 날씨</span>
+          <span class="weather-badge">실시간</span>
+        </div>
+
+        <div class="map-area">
+          <!-- Tooltip (hover state demo for Koniambo) -->
+          <div class="mine-tooltip">
+            <div class="tooltip-mine-name">⛏ Koniambo</div>
+            <div class="tooltip-row">
+              <span class="tooltip-day">오늘</span>
+              <span class="tooltip-icon">☀️</span>
+              <span class="tooltip-condition">맑음</span>
+              <span class="tooltip-temp">27°</span>
+            </div>
+            <div class="tooltip-row">
+              <span class="tooltip-day">내일</span>
+              <span class="tooltip-icon">⛅</span>
+              <span class="tooltip-condition">구름 많음</span>
+              <span class="tooltip-temp">25°</span>
+            </div>
+            <div class="tooltip-row">
+              <span class="tooltip-day">모레</span>
+              <span class="tooltip-icon">🌧️</span>
+              <span class="tooltip-condition">비</span>
+              <span class="tooltip-temp">22°</span>
+            </div>
+          </div>
+          <div class="connector"></div>
+
+          <!-- SVG Map -->
+          <svg viewBox="0 0 300 200" style="width:100%;height:100%;min-height:210px;">
+            <defs>
+              <radialGradient id="oceanBg" cx="50%" cy="50%" r="70%">
+                <stop offset="0%" stop-color="#0a1628"/>
+                <stop offset="100%" stop-color="#060e1a"/>
+              </radialGradient>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="markerGlow">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+
+            <!-- Ocean background -->
+            <rect width="300" height="200" fill="url(#oceanBg)"/>
+
+            <!-- Subtle grid -->
+            <g stroke="rgba(255,255,255,0.025)" stroke-width="0.5">
+              <line x1="0" y1="50" x2="300" y2="50"/>
+              <line x1="0" y1="100" x2="300" y2="100"/>
+              <line x1="0" y1="150" x2="300" y2="150"/>
+              <line x1="75" y1="0" x2="75" y2="200"/>
+              <line x1="150" y1="0" x2="150" y2="200"/>
+              <line x1="225" y1="0" x2="225" y2="200"/>
+            </g>
+
+            <!-- NC main island (Grande Terre) — simplified elongated shape -->
+            <path d="M18,110 Q25,85 45,75 Q65,60 90,58 Q115,50 138,48 Q162,44 185,46 Q208,46 228,54 Q248,62 258,76 Q264,88 260,100 Q255,112 242,116 Q225,122 205,118 Q182,114 160,112 Q138,112 115,115 Q90,118 68,118 Q45,118 28,114 Z" fill="#1e3a1a" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+
+            <!-- Darker mountain areas -->
+            <path d="M80,75 Q105,60 130,58 Q155,52 175,55 Q190,55 200,62 Q185,68 165,70 Q145,70 125,72 Q105,74 85,78 Z" fill="#162e12" opacity="0.6"/>
+
+            <!-- Subtle coastline highlight -->
+            <path d="M18,110 Q25,85 45,75 Q65,60 90,58 Q115,50 138,48 Q162,44 185,46 Q208,46 228,54 Q248,62 258,76 Q264,88 260,100" fill="none" stroke="rgba(100,160,255,0.12)" stroke-width="1"/>
+
+            <!-- Compass rose (tiny) -->
+            <g transform="translate(275,18)" fill="rgba(255,255,255,0.2)">
+              <text x="0" y="-6" text-anchor="middle" font-size="5">N</text>
+              <line x1="0" y1="-4" x2="0" y2="4" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+              <line x1="-4" y1="0" x2="4" y2="0" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+            </g>
+
+            <!-- Mine markers with weather -->
+            <!-- Nouméa (SW coast) -->
+            <g transform="translate(60,108)" filter="url(#markerGlow)">
+              <circle r="7" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5"/>
+              <circle r="3" fill="#10b981"/>
+            </g>
+            <text x="60" y="122" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,0.7)" font-weight="700">Nouméa</text>
+            <text x="60" y="131" text-anchor="middle" font-size="8" fill="#fff">☀️ 26°</text>
+
+            <!-- Thio (E coast, mid) -->
+            <g transform="translate(190,90)" filter="url(#markerGlow)">
+              <circle r="7" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5"/>
+              <circle r="3" fill="#10b981"/>
+            </g>
+            <text x="190" y="104" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,0.7)" font-weight="700">Thio</text>
+            <text x="190" y="113" text-anchor="middle" font-size="8" fill="#fff">⛅ 25°</text>
+
+            <!-- Koniambo (NW) — ACTIVE/HOVERED -->
+            <g transform="translate(155,60)" filter="url(#markerGlow)">
+              <circle r="10" fill="rgba(96,165,250,0.15)" stroke="#60a5fa" stroke-width="2"/>
+              <circle r="4" fill="#60a5fa"/>
+            </g>
+            <text x="155" y="74" text-anchor="middle" font-size="6.5" fill="#93c5fd" font-weight="700">Koniambo</text>
+            <text x="155" y="83" text-anchor="middle" font-size="8" fill="#fff">☀️ 27°</text>
+
+            <!-- Kouaoua (E coast, upper) -->
+            <g transform="translate(220,72)" filter="url(#markerGlow)">
+              <circle r="7" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5"/>
+              <circle r="3" fill="#10b981"/>
+            </g>
+            <text x="220" y="86" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,0.7)" font-weight="700">Kouaoua</text>
+            <text x="220" y="95" text-anchor="middle" font-size="8" fill="#fff">⛅ 24°</text>
+
+            <!-- Goro (S tip) -->
+            <g transform="translate(230,110)" filter="url(#markerGlow)">
+              <circle r="7" fill="rgba(16,185,129,0.2)" stroke="#10b981" stroke-width="1.5"/>
+              <circle r="3" fill="#10b981"/>
+            </g>
+            <text x="230" y="124" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,0.7)" font-weight="700">Goro</text>
+            <text x="230" y="133" text-anchor="middle" font-size="8" fill="#fff">🌧️ 22°</text>
+
+          </svg>
+        </div>
+
+        <div class="weather-footer">
+          <span><span class="live-dot"></span><span class="footer-text">Open-Meteo · 자동 갱신</span></span>
+          <span class="footer-text">마지막 업데이트 방금 전</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px;background:#1e293b;border-radius:8px;padding:14px 16px;font-size:12px;color:#94a3b8;line-height:1.8;">
+  <div style="color:#e2e8f0;font-weight:700;margin-bottom:6px;">구현 포인트</div>
+  <div>• <strong style="color:#60a5fa;">Open-Meteo API</strong> — 무료, API 키 불필요. 각 광산 좌표로 현재 기온·날씨코드·3일 예보 fetch</div>
+  <div>• <strong style="color:#60a5fa;">SVG 인터랙션</strong> — 마커 hover 시 JS로 툴팁 표시, 다른 마커 클릭 시 전환</div>
+  <div>• <strong style="color:#60a5fa;">날씨 코드 → 이모지</strong> — WMO 날씨 코드 매핑 (맑음/구름/비/뇌우)</div>
+  <div>• <strong style="color:#60a5fa;">자동 갱신</strong> — setInterval로 30분마다 백그라운드 fetch</div>
+</div>
+
+</body>
+</html>

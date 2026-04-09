@@ -26,6 +26,16 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 - 스케줄: `http://localhost:8000/schedule`
 - 헬스체크: `http://localhost:8000/api/health`
 
+### 하역 대시보드 · 공급 이슈(뉴스)
+
+- `GET /api/supply-news?cargo_type=nickel` 또는 `cargo_type=coal`
+- **`.env` 로딩**: `backend/main.py` 시작 시 프로젝트 루트의 `.env`를 `python-dotenv`로 읽습니다.
+- **`TAVILY_API_KEY`** 가 있으면 [Tavily Search](https://tavily.com/)(`topic=news`, 최근 한 달)로 기사를 가져옵니다. 없거나 결과가 없으면 **Google News RSS**로 대체합니다.
+- **`OPENAI_API_KEY`** 가 있으면 제목·스니펫을 바탕으로 **한국어 제목 + 2문장 요약**을 생성합니다. 없으면 영문 스니펫 위주로 표시합니다.
+- (선택) `OPENAI_SUPPLY_NEWS_MODEL`(기본 `gpt-4o-mini`), `TAVILY_SEARCH_DEPTH`(기본 `basic`, `advanced`는 크레딧 2배).
+
+`.env` 는 저장소에 커밋하지 마세요. 키가 유출되면 즉시 재발급하세요.
+
 ## Docker 실행
 
 ```bash

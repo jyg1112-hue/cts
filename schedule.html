@@ -328,7 +328,7 @@ body {
 <div class="app-header">
   <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
     <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
-    <h1>⚓ 7선석 하역 스케줄</h1>
+    <h1>7선석 하역 스케줄</h1>
     <select style="padding:5px 10px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;font-weight:600;color:#1a3a5c;background:white;cursor:pointer;" onchange="switchBerth(this.value)">
       <option value="schedule" selected>7선석</option>
       <option value="banchu">반출</option>
@@ -587,6 +587,30 @@ function pushUndo() {
 const tip = document.getElementById('tip');
 function isPostco(customer) { return customer === '포스코' || customer === 'POSCO'; }
 function getNowRounded() { const n = new Date(); n.setMinutes(0, 0, 0); return n; }
+function formatBLKiloTon(bl) {
+  const blNum = parseFloat(bl);
+  if (!(blNum > 0)) return null;
+  const rounded = Math.round(blNum / 1000);
+  return `${rounded}`;
+}
+function formatMMDD(dateStr) {
+  if (!dateStr) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr.slice(5).replace('-', '/');
+  const dt = parseDT(dateStr) || parseDate(dateStr);
+  if (!dt) return null;
+  return `${pad(dt.getMonth() + 1)}/${pad(dt.getDate())}`;
+}
+function buildShipTitle(item) {
+  const parts = [];
+  const blKiloTon = formatBLKiloTon(item.bl);
+  const blDate = formatMMDD(item.blDate);
+  if (blKiloTon) parts.push(`${blKiloTon}천톤`);
+  if (blDate) parts.push(blDate);
+  return {
+    name: item.name || '',
+    meta: parts.length ? parts.join(', ') : ''
+  };
+}
 
 // ══════════════════════════════════════════
 //  COLOR
@@ -1105,10 +1129,10 @@ function render() {
         el.style.color = custIsPostco ? '#111' : textColor(item.color || '#9ca3af');
         const displayOrigin = custIsPostco ? item.brand : item.origin;
         const sub = [item.cargoType, displayOrigin, item.customer].filter(Boolean).join(' · ');
-        const blDateFmt = item.blDate ? ` <span class="sb-sub" style="font-weight:400;">(${item.blDate.slice(5).replace('-','/')})</span>` : '';
+        const shipTitle = buildShipTitle(item);
         el.innerHTML = `
           ${fromPrev ? '<div class="cont-arrow">◀</div>' : ''}
-          <div class="sb-name">${item.name}${blDateFmt}</div>
+          <div class="sb-name">${shipTitle.name}${shipTitle.meta ? ` <span class="sb-sub" style="font-weight:400;">(${shipTitle.meta})</span>` : ''}</div>
           ${sub ? `<div class="sb-sub">${sub}</div>` : ''}
           ${!toNext ? `<div class="resize-handle" data-rh="${item.id}"></div>` : ''}`;
       }
@@ -1724,47 +1748,22 @@ async function captureImage() {
   const tlOuter = document.getElementById('tlOuter');
   if (!tlOuter) return;
 
-  // 해상도/뷰포트와 무관하게 페이지 내용 전체가 잘리지 않도록 확장 캡처
-  const savedScrollX = window.scrollX;
-  const savedScrollY = window.scrollY;
-  const savedOverflow = tlOuter.style.overflow;
-  const savedHeight = tlOuter.style.height;
-  tlOuter.style.overflow = 'visible';
-  tlOuter.style.height = 'auto';
-
+  // 전체 페이지가 아니라 현재 스케줄 달력 영역만 캡처한다.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  const fullW = Math.max(
-    document.documentElement.scrollWidth,
-    document.body.scrollWidth,
-    tlOuter.scrollWidth
-  );
-  const fullH = Math.max(
-    document.documentElement.scrollHeight,
-    document.body.scrollHeight
-  );
-
   try {
-    const canvas = await html2canvas(document.body, {
+    const canvas = await html2canvas(tlOuter, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#f0f2f5',
-      scrollX: 0,
-      scrollY: 0,
-      width: fullW,
-      height: fullH,
-      windowWidth: fullW,
-      windowHeight: fullH,
+      scrollX: -window.scrollX,
+      scrollY: -window.scrollY
     });
     const fname = `7선석_스케줄_${toDateStr(new Date()).replace(/-/g,'')}.png`;
     const a = document.createElement('a');
     a.download = fname; a.href = canvas.toDataURL('image/png'); a.click();
   } catch(e) {
     alert('이미지 저장 오류: ' + e.message);
-  } finally {
-    tlOuter.style.overflow = savedOverflow;
-    tlOuter.style.height = savedHeight;
-    window.scrollTo(savedScrollX, savedScrollY);
   }
 }
 

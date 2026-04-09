@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
 import pandas as pd
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+from backend.supply_news import get_supply_news_payload
 INDEX_HTML = BASE_DIR / "index.html"
 SCHEDULE_HTML = BASE_DIR / "schedule.html"
 BANCHU_HTML = BASE_DIR / "banchu.html"
@@ -164,6 +170,103 @@ def _classify_issue_tags(remark: str) -> list[str]:
     return tags or ["기타"]
 
 
+def _clean_issue_text(text: str) -> str:
+    cleaned = _normalize_text(text)
+    if not cleaned:
+        return ""
+    # 시간/시각성 표현 제거 (예: 14:30, 14시, 14시30분, 2025-01-10 08:00)
+    cleaned = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", cleaned)
+    cleaned = re.sub(r"\b\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?\b", " ", cleaned)
+    cleaned = re.sub(r"\b\d{4}[./-]\d{1,2}[./-]\d{1,2}\b", " ", cleaned)
+    cleaned = re.sub(r"\([^)]*\)", " ", cleaned)
+    cleaned = re.sub(r"[○●■□▶▷]+", " ", cleaned)
+    cleaned = re.sub(r"\b\d+\s*[=.)-]?", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    return cleaned
+
+
+def _extract_category_issue_examples(remark: str, category: str) -> list[str]:
+    cleaned = _clean_issue_text(remark)
+    if not cleaned:
+        return []
+
+    # 문장을 잘게 나눠 마이너/잡다한 문구를 줄임
+    parts = [
+        p.strip(" ,.;:-")
+        for p in re.split(r"[,\n;/]+|(?:\s+및\s+)|(?:\s+그리고\s+)", cleaned)
+        if p.strip()
+    ]
+    if not parts:
+        parts = [cleaned]
+
+    # 카테고리별 키워드가 포함된 문구만 채택
+    keywords = ISSUE_CATEGORY_RULES.get(category, [])
+    selected: list[str] = []
+    if keywords:
+        for part in parts:
+            lower = part.lower()
+            if any(k.lower() in lower for k in keywords):
+                selected.append(part)
+    elif category == "기타":
+        selected = parts
+
+    # 기타만 완화 규칙을 허용하고, 나머지 카테고리는 엄격하게 비워둔다.
+    if not selected and category == "기타":
+        selected = [cleaned]
+
+    # 너무 짧거나 정보량이 적은 문구 제거 + 중복 제거
+    normalized_seen: set[str] = set()
+    result: list[str] = []
+    skip_tokens = ("계획정비", "일상", "재 착수", "재착수", "정기점검")
+    for item in selected:
+        compact = re.sub(r"\s+", " ", item).strip()
+        compact = compact.strip(" ,.;:-")
+        if len(compact) < 4:
+            continue
+        if any(tok in compact for tok in skip_tokens):
+            continue
+        if len(compact) > 34:
+            compact = compact[:34].rstrip() + "…"
+        key = compact.lower()
+        if key in normalized_seen:
+            continue
+        normalized_seen.add(key)
+        result.append(compact)
+    return result
+
+
+def _extract_remark_durations(remark: str) -> list[dict[str, Any]]:
+    text = _normalize_text(remark)
+    if not text:
+        return []
+
+    # 예: 기상불량(우천대기) : 2:10, 일상정비(2:57), 계획정비 ... (40:00)
+    pattern = re.compile(r"(?P<label>[^()\n]{0,80}?)\(\s*(?P<hour>\d{1,3})\s*:\s*(?P<minute>\d{1,2})\s*\)")
+    matches: list[dict[str, Any]] = []
+    for m in pattern.finditer(text):
+        try:
+            hour = int(m.group("hour"))
+            minute = int(m.group("minute"))
+        except (TypeError, ValueError):
+            continue
+        if minute < 0 or minute >= 60:
+            continue
+        label = re.sub(r"\s+", " ", (m.group("label") or "")).strip(" :-,")
+        total_minutes = hour * 60 + minute
+        if total_minutes <= 0:
+            continue
+        matches.append(
+            {
+                "label": label,
+                "hours": hour,
+                "minutes": minute,
+                "total_minutes": total_minutes,
+                "time_hhmm": f"{hour}:{minute:02d}",
+            }
+        )
+    return matches
+
+
 def _parse_float(value: Any) -> Optional[float]:
     if value is None:
         return None
@@ -226,6 +329,7 @@ def _parse_unloading_sheet(cargo_type: str, sheet_name: str, source_path: Path) 
 
         remark = _normalize_text(row.get("비고"))
         issue_tags = _classify_issue_tags(remark)
+        remark_durations = _extract_remark_durations(remark)
         rows.append(
             {
                 "cargo_type": cargo_type,
@@ -237,6 +341,7 @@ def _parse_unloading_sheet(cargo_type: str, sheet_name: str, source_path: Path) 
                 "unloading_rate": rate,
                 "remark": remark,
                 "issue_tags": issue_tags,
+                "remark_durations": remark_durations,
                 "source_file": source_path.name,
             }
         )
@@ -289,7 +394,17 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "kpis": {"total_volume_ton": 0, "total_vessels": 0, "avg_unloading_rate": 0, "issue_count": 0},
             "monthly": [],
             "issue_breakdown": [{"category": c, "count": 0} for c in ISSUE_CATEGORIES],
+            "issue_examples": {},
             "brand_table": [],
+            "duration_overview": {
+                "count": 0,
+                "total_minutes": 0,
+                "avg_minutes": 0,
+                "avg_time_hhmm": "0:00",
+                "max_minutes": 0,
+                "max_time_hhmm": "0:00",
+                "top_duration_samples": [],
+            },
         }
 
     vessel_names = {r["vessel_name"] for r in rows}
@@ -298,7 +413,9 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     monthly_map: dict[tuple[int, int], dict[str, Any]] = {}
     issue_counter = {c: 0 for c in ISSUE_CATEGORIES}
+    issue_examples: dict[str, set[str]] = {c: set() for c in ISSUE_CATEGORIES}
     brand_map: dict[str, dict[str, Any]] = {}
+    all_durations: list[dict[str, Any]] = []
     for r in rows:
         ym = (r["year"], r["month"])
         if ym not in monthly_map:
@@ -309,8 +426,15 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         tags = r["issue_tags"] or []
         if not tags:
             issue_counter["기타"] += 1
+            if r["remark"]:
+                for ex in _extract_category_issue_examples(r["remark"], "기타"):
+                    issue_examples["기타"].add(ex)
         for tag in tags:
-            issue_counter[tag if tag in issue_counter else "기타"] += 1
+            resolved_tag = tag if tag in issue_counter else "기타"
+            issue_counter[resolved_tag] += 1
+            if r["remark"]:
+                for ex in _extract_category_issue_examples(r["remark"], resolved_tag):
+                    issue_examples[resolved_tag].add(ex)
 
         brand = r["brand"]
         if brand not in brand_map:
@@ -322,6 +446,21 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         brand_row["issue_count"] += len(tags)
         for tag in tags:
             brand_row["issues"][tag] = brand_row["issues"].get(tag, 0) + 1
+        for d in r.get("remark_durations") or []:
+            all_durations.append(
+                {
+                    "cargo_type": r.get("cargo_type"),
+                    "year": r.get("year"),
+                    "month": r.get("month"),
+                    "brand": r.get("brand"),
+                    "label": d.get("label") or "",
+                    "time_hhmm": d.get("time_hhmm"),
+                    "hours": d.get("hours"),
+                    "minutes": d.get("minutes"),
+                    "total_minutes": d.get("total_minutes"),
+                    "remark": r.get("remark"),
+                }
+            )
 
     monthly = []
     for _, item in sorted(monthly_map.items(), key=lambda x: (x[0][0], x[0][1])):
@@ -335,6 +474,11 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         )
 
     issue_breakdown = [{"category": c, "count": issue_counter[c]} for c in ISSUE_CATEGORIES]
+    issue_examples_payload = {
+        category: sorted(list(examples))[:5]
+        for category, examples in issue_examples.items()
+        if examples
+    }
 
     brand_table = []
     for b in brand_map.values():
@@ -353,6 +497,18 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         )
     brand_table.sort(key=lambda x: x["volume_ton"], reverse=True)
 
+    duration_count = len(all_durations)
+    duration_total_minutes = sum(int(d.get("total_minutes") or 0) for d in all_durations)
+    duration_avg_minutes = (duration_total_minutes / duration_count) if duration_count else 0
+    duration_max_minutes = max((int(d.get("total_minutes") or 0) for d in all_durations), default=0)
+    top_duration_samples = sorted(all_durations, key=lambda x: int(x.get("total_minutes") or 0), reverse=True)[:12]
+
+    def to_hhmm(total_minutes: float) -> str:
+        mins = int(round(total_minutes))
+        h = mins // 60
+        m = mins % 60
+        return f"{h}:{m:02d}"
+
     return {
         "kpis": {
             "total_volume_ton": round(total_volume, 2),
@@ -362,8 +518,719 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "monthly": monthly,
         "issue_breakdown": issue_breakdown,
+        "issue_examples": issue_examples_payload,
         "brand_table": brand_table,
+        "duration_overview": {
+            "count": duration_count,
+            "total_minutes": duration_total_minutes,
+            "avg_minutes": round(duration_avg_minutes, 2),
+            "avg_time_hhmm": to_hhmm(duration_avg_minutes),
+            "max_minutes": duration_max_minutes,
+            "max_time_hhmm": to_hhmm(duration_max_minutes),
+            "top_duration_samples": top_duration_samples,
+        },
     }
+
+
+def _build_dashboard_chat_context(
+    summary: dict[str, Any],
+    cargo_type: str,
+    start_year: Optional[int],
+    end_year: Optional[int],
+    brands: str,
+    cargo_summaries: Optional[dict[str, Any]] = None,
+) -> str:
+    kpis = summary.get("kpis", {})
+    top_brands = summary.get("brand_table", [])[:8]
+    monthly = summary.get("monthly", [])
+    latest_monthly = monthly[-6:] if len(monthly) > 6 else monthly
+    issue_breakdown = summary.get("issue_breakdown", [])
+    issue_examples = summary.get("issue_examples", {})
+    duration_overview = summary.get("duration_overview", {})
+    context = {
+        "filter": {
+            "cargo_type": cargo_type,
+            "start_year": start_year,
+            "end_year": end_year,
+            "brands": brands,
+        },
+        "kpis": kpis,
+        "kpis_rounded_for_chat": {
+            "total_volume_ton": int(round(float(kpis.get("total_volume_ton", 0) or 0))),
+            "total_vessels": int(round(float(kpis.get("total_vessels", 0) or 0))),
+            "avg_unloading_rate": int(round(float(kpis.get("avg_unloading_rate", 0) or 0))),
+            "issue_count": int(round(float(kpis.get("issue_count", 0) or 0))),
+        },
+        "latest_monthly": latest_monthly,
+        "top_brands": top_brands,
+        "issue_breakdown": issue_breakdown,
+        "issue_examples": issue_examples,
+        "duration_overview": duration_overview,
+        "cargo_summaries": cargo_summaries or {},
+    }
+    return json.dumps(context, ensure_ascii=False)
+
+
+def _chat_completion_with_openai(question: str, context_json: str, history: list[dict[str, str]] | None = None) -> Optional[str]:
+    api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        return None
+    user_prompt = (
+        "응답은 반드시 JSON 객체 형식으로만 반환하세요:\n"
+        '{"found": true|false, "answer": "한국어 답변", "evidence": ["근거1", "근거2"]}\n\n'
+        f"질문: {question}"
+    )
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": (
+                "당신은 7선석 항만 하역 운영 데이터를 분석하는 전문 어시스턴트입니다.\n\n"
+                "## 사전 집계된 통계 데이터\n"
+                "아래 JSON은 원본 데이터를 코드로 집계한 정확한 수치입니다.\n"
+                "이 수치를 기준으로 답변하십시오. 절대 추측하거나 직접 계산하지 마십시오.\n\n"
+                f"{context_json}\n\n"
+                "## 답변 규칙\n"
+                "1. 수치는 반드시 위 JSON 데이터에서 조회하여 인용한다.\n"
+                "2. 랭킹 질문(몇 번째로 많은/적은)은 bySpecies, byVessel 배열의 인덱스를 사용한다.\n"
+                "3. 이전 대화의 조건(연도, 품종, 월 등)을 이어받아 답변한다.\n"
+                "4. 모르는 정보는 found=false로 반환하고 answer에는 '해당 데이터가 없습니다'를 사용한다. 추측하지 않는다.\n"
+                "5. 숫자는 천 단위 쉼표를 붙여 가독성 있게 표시한다 (예: 1,076,568 t).\n"
+                "6. 답변은 간결하게 1~3문장으로 한다.\n"
+                "7. DB(업로드 데이터)에 없는 사실, 외부 지식, 일반 상식으로 내용을 보충하지 않는다.\n"
+                "8. 질문이 애매하면 의도를 확인하는 한 문장을 answer에 넣고 found=false로 반환한다."
+            ),
+        },
+    ]
+    for turn in history or []:
+        role = str(turn.get("role") or "")
+        content = str(turn.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_prompt})
+
+    body = json.dumps(
+        {
+            "model": "gpt-4.1-mini",
+            "messages": messages,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.1,
+            "max_tokens": 500,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        content = payload.get("choices", [{}])[0].get("message", {}).get("content", "")
+        content = str(content).strip()
+        if not content:
+            return None
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            start = content.find("{")
+            end = content.rfind("}")
+            if start >= 0 and end > start:
+                parsed = json.loads(content[start : end + 1])
+            else:
+                return None
+
+        found = bool(parsed.get("found"))
+        answer = str(parsed.get("answer") or "").strip()
+        evidence = parsed.get("evidence")
+        evidence_lines: list[str] = []
+        if isinstance(evidence, list):
+            for ev in evidence[:3]:
+                txt = str(ev).strip()
+                if txt:
+                    evidence_lines.append(txt)
+        if not found:
+            return "현재 업로드된 데이터에서 확인되지 않습니다."
+        if not answer:
+            return None
+        if evidence_lines:
+            return f"{answer}\n근거: " + " / ".join(evidence_lines)
+        return answer
+    except (urllib.error.URLError, OSError, TimeoutError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _format_numbers_with_commas(text: str) -> str:
+    def format_int(value: int, raw_token: str) -> str:
+        # 연도(1900~2100)처럼 보이는 4자리 수는 콤마 처리하지 않음
+        if 1900 <= value <= 2100 and len(raw_token) == 4:
+            return raw_token
+        return f"{value:,}"
+
+    def repl_decimal(match: re.Match[str]) -> str:
+        token = match.group(0)
+        try:
+            rounded = int(round(float(token)))
+            return format_int(rounded, str(rounded))
+        except ValueError:
+            return token
+
+    def repl(match: re.Match[str]) -> str:
+        token = match.group(0)
+        try:
+            value = int(token)
+            return format_int(value, token)
+        except ValueError:
+            return token
+
+    # 소수점 숫자는 반올림 정수로 변환 후 표기
+    text = re.sub(r"(?<![\d.])\d+\.\d+(?![\d.])", repl_decimal, text)
+    # 소수점이 없는 4자리 이상 정수는 천 단위 콤마 적용
+    return re.sub(r"(?<![\d.])\d{4,}(?![\d.])", repl, text)
+
+
+def _is_ambiguous_chat_question(question: str) -> bool:
+    q = _normalize_text(question)
+    if not q:
+        return True
+    # 한 글자 입력(예: "ㅇ", "작")이나 지나치게 짧은 토큰은 의도 파악이 어려움
+    stripped = re.sub(r"\s+", "", q)
+    if len(stripped) <= 1:
+        return True
+    # 숫자/기호 위주 짧은 입력은 질문으로 보기 어려움
+    if re.fullmatch(r"[\W_0-9]+", stripped):
+        return True
+    return False
+
+
+def _infer_scope_from_question(question: str) -> tuple[Optional[str], Optional[int]]:
+    q = _normalize_text(question).lower()
+    cargo: Optional[str] = None
+    if any(k in q for k in ("니켈", "nickel")):
+        cargo = "nickel"
+    elif any(k in q for k in ("석탄", "coal")):
+        cargo = "coal"
+
+    year: Optional[int] = None
+    m = re.search(r"(20\d{2})\s*년", q)
+    if not m:
+        m = re.search(r"\b(20\d{2})\b", q)
+    if m:
+        y = int(m.group(1))
+        if 2000 <= y <= 2100:
+            year = y
+    return cargo, year
+
+
+def _detect_request_type(q: str) -> str:
+    if re.search(r"랭킹|순위|많[이은]|적[은이]|높[은이]|낮[은이]|상위|하위|번째", q):
+        return "ranking"
+    if re.search(r"평균|평균값", q):
+        return "average"
+    if re.search(r"합계|총|전체", q):
+        return "total"
+    if re.search(r"월별|월마다", q):
+        return "monthly"
+    if re.search(r"연도별|년도별|연간", q):
+        return "yearly"
+    if re.search(r"선박|배", q):
+        return "vessel"
+    if re.search(r"품종|광종|브랜드", q):
+        return "species"
+    return "general"
+
+
+def _parse_query(question: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    q = _normalize_text(question)
+    q_lower = q.lower()
+    cargo_type, year = _infer_scope_from_question(question)
+
+    month: Optional[int] = None
+    month_match = re.search(r"(\d{1,2})\s*월", q_lower)
+    if month_match:
+        m = int(month_match.group(1))
+        if 1 <= m <= 12:
+            month = m
+
+    species: Optional[str] = None
+    vessel: Optional[str] = None
+
+    def norm_text(value: str) -> str:
+        return re.sub(r"[^0-9a-z가-힣]+", "", (value or "").lower())
+    all_species = sorted({str((r.get("brand") or "")).strip() for r in rows if str((r.get("brand") or "")).strip()}, key=len, reverse=True)
+    all_vessels = sorted(
+        {str((r.get("vessel_name") or "")).strip() for r in rows if str((r.get("vessel_name") or "")).strip()},
+        key=len,
+        reverse=True,
+    )
+    q_fold = q_lower.casefold()
+    q_norm = norm_text(q_lower)
+    for s in all_species:
+        s_fold = s.casefold()
+        s_norm = norm_text(s)
+        if s_fold in q_fold or (s_norm and s_norm in q_norm):
+            species = s
+            break
+    for v in all_vessels:
+        v_fold = v.casefold()
+        v_norm = norm_text(v)
+        if v_fold in q_fold or (v_norm and v_norm in q_norm):
+            vessel = v
+            break
+
+    return {
+        "year": year,
+        "month": month,
+        "species": species,
+        "vessel": vessel,
+        "cargo_type": cargo_type,
+        "request_type": _detect_request_type(q_lower),
+    }
+
+
+def _merge_query_with_history(parsed: dict[str, Any], history: list[dict[str, str]], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    merged = dict(parsed)
+    for turn in reversed(history):
+        if turn.get("role") != "user":
+            continue
+        prev = _parse_query(turn.get("content") or "", rows)
+        for key in ("year", "month", "species", "vessel", "cargo_type"):
+            if merged.get(key) is None and prev.get(key) is not None:
+                merged[key] = prev[key]
+        if all(merged.get(k) is not None for k in ("year", "month", "species", "vessel", "cargo_type")):
+            break
+    return merged
+
+
+def _compute_dynamic_chat_summary(rows: list[dict[str, Any]], filters: dict[str, Any]) -> dict[str, Any]:
+    year = filters.get("year")
+    month = filters.get("month")
+    species = filters.get("species")
+    vessel = filters.get("vessel")
+    cargo_type = filters.get("cargo_type")
+
+    data = rows
+    if cargo_type in {"coal", "nickel"}:
+        data = [r for r in data if r.get("cargo_type") == cargo_type]
+    if year is not None:
+        data = [r for r in data if int(r.get("year") or 0) == int(year)]
+    if month is not None:
+        data = [r for r in data if int(r.get("month") or 0) == int(month)]
+    if species:
+        data = [r for r in data if str(r.get("brand") or "") == str(species)]
+    if vessel:
+        data = [r for r in data if str(r.get("vessel_name") or "") == str(vessel)]
+
+    def sum_key(items: list[dict[str, Any]], key: str) -> float:
+        return sum(float(i.get(key) or 0) for i in items)
+
+    def avg_key(items: list[dict[str, Any]], key: str) -> float:
+        return (sum_key(items, key) / len(items)) if items else 0.0
+
+    def avg_duration_minutes(items: list[dict[str, Any]]) -> int:
+        vals: list[int] = []
+        for row in items:
+            for d in row.get("remark_durations") or []:
+                mins = int(d.get("total_minutes") or 0)
+                if mins > 0:
+                    vals.append(mins)
+        return int(round(sum(vals) / len(vals))) if vals else 0
+
+    def group(items: list[dict[str, Any]], key: str, sort_name_asc: bool = False) -> list[dict[str, Any]]:
+        g: dict[str, list[dict[str, Any]]] = {}
+        for row in items:
+            k = str(row.get(key) or "").strip()
+            if not k:
+                continue
+            g.setdefault(k, []).append(row)
+        result: list[dict[str, Any]] = []
+        for name, grp in g.items():
+            result.append(
+                {
+                    "rank": 0,
+                    "name": name,
+                    "count": len(grp),
+                    "totalBL": int(round(sum_key(grp, "volume_ton"))),
+                    "avgRate": int(round(avg_key(grp, "unloading_rate"))),
+                }
+            )
+        if sort_name_asc:
+            result.sort(key=lambda x: x["name"])
+        else:
+            result.sort(key=lambda x: x.get("totalBL", 0), reverse=True)
+        for i, row in enumerate(result):
+            row["rank"] = i + 1
+        return result
+
+    by_species = group(data, "brand", sort_name_asc=False)
+    by_vessel = group(data, "vessel_name", sort_name_asc=False)
+    by_month = group(data, "month", sort_name_asc=True)
+    by_year = group(data, "year", sort_name_asc=True)
+    top_unloading_rate = sorted(data, key=lambda r: float(r.get("unloading_rate") or 0), reverse=True)[:5]
+    bottom_unloading_rate = sorted(data, key=lambda r: float(r.get("unloading_rate") or 0))[:5]
+
+    return {
+        "meta": {
+            "totalCount": len(data),
+            "totalBL": int(round(sum_key(data, "volume_ton"))),
+            "avgUnloadingRate": int(round(avg_key(data, "unloading_rate"))),
+            "avgDurationMinutes": avg_duration_minutes(data),
+            "filters": {
+                "year": year,
+                "month": month,
+                "species": species,
+                "vessel": vessel,
+                "cargo_type": cargo_type,
+            },
+        },
+        "bySpecies": by_species,
+        "byVessel": by_vessel,
+        "byMonth": by_month,
+        "byYear": by_year,
+        "topUnloadingRate": [
+            {
+                "vessel": r.get("vessel_name"),
+                "species": r.get("brand"),
+                "year": r.get("year"),
+                "month": r.get("month"),
+                "unloading_rate": int(round(float(r.get("unloading_rate") or 0))),
+                "volume_ton": int(round(float(r.get("volume_ton") or 0))),
+            }
+            for r in top_unloading_rate
+        ],
+        "bottomUnloadingRate": [
+            {
+                "vessel": r.get("vessel_name"),
+                "species": r.get("brand"),
+                "year": r.get("year"),
+                "month": r.get("month"),
+                "unloading_rate": int(round(float(r.get("unloading_rate") or 0))),
+                "volume_ton": int(round(float(r.get("volume_ton") or 0))),
+            }
+            for r in bottom_unloading_rate
+        ],
+    }
+
+
+def _normalize_chat_history(history_raw: Any) -> list[dict[str, str]]:
+    history: list[dict[str, str]] = []
+    if not isinstance(history_raw, list):
+        return history
+    # 최근 10턴(사용자/어시스턴트 20개 메시지)만 유지
+    for item in history_raw[-20:]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "")
+        content = str(item.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            history.append({"role": role, "content": content})
+    return history
+
+
+def _infer_scope_from_history(history: list[dict[str, str]]) -> tuple[Optional[str], Optional[int]]:
+    cargo: Optional[str] = None
+    year: Optional[int] = None
+    # 최근 맥락 우선
+    for turn in reversed(history):
+        if turn.get("role") != "user":
+            continue
+        c, y = _infer_scope_from_question(turn.get("content") or "")
+        if cargo is None and c is not None:
+            cargo = c
+        if year is None and y is not None:
+            year = y
+        if cargo is not None and year is not None:
+            break
+    return cargo, year
+
+
+def _infer_rank_from_question(question: str) -> Optional[int]:
+    q = _normalize_text(question).lower()
+    if not q:
+        return None
+
+    # 숫자 + 번째 (예: 2번째, 3 번째)
+    m = re.search(r"(\d+)\s*번째", q)
+    if m:
+        rank = int(m.group(1))
+        return rank if rank >= 1 else None
+
+    # 서수 표현
+    ordinal_map = {
+        "첫번째": 1,
+        "첫째": 1,
+        "한번째": 1,
+        "두번째": 2,
+        "둘째": 2,
+        "세번째": 3,
+        "셋째": 3,
+        "네번째": 4,
+        "넷째": 4,
+        "다섯번째": 5,
+        "여섯번째": 6,
+        "일곱번째": 7,
+        "여덟번째": 8,
+        "아홉번째": 9,
+        "열번째": 10,
+    }
+    for token, rank in ordinal_map.items():
+        if token in q:
+            return rank
+
+    if any(t in q for t in ("가장 많이", "최다", "top")):
+        return 1
+    return None
+
+
+def _is_brand_rank_question(question: str) -> bool:
+    q = _normalize_text(question).lower()
+    if not q:
+        return False
+    return any(t in q for t in ("품종", "브랜드")) and any(
+        t in q for t in ("많이", "최다", "top", "번째", "다음", "그 다음")
+    )
+
+
+def _infer_rank_from_history(history: list[dict[str, str]]) -> Optional[int]:
+    for turn in reversed(history):
+        if turn.get("role") != "user":
+            continue
+        content = turn.get("content") or ""
+        if not _is_brand_rank_question(content):
+            continue
+        rank = _infer_rank_from_question(content)
+        if rank is not None:
+            return rank
+        if any(t in content for t in ("그 다음", "다음", "next")):
+            # 과거 질문이 "그 다음" 형태면 최소 2위로 간주
+            return 2
+    return None
+
+
+def _build_rule_based_chat_answer(
+    question: str,
+    rows: list[dict[str, Any]],
+    history: Optional[list[dict[str, str]]] = None,
+    parsed_filters: Optional[dict[str, Any]] = None,
+) -> Optional[str]:
+    q = _normalize_text(question).lower()
+    cargo, year = _infer_scope_from_question(question)
+    hist_cargo, hist_year = _infer_scope_from_history(history or [])
+    month = (parsed_filters or {}).get("month")
+    species = (parsed_filters or {}).get("species")
+    vessel = (parsed_filters or {}).get("vessel")
+
+    # 명시적 여집합/제외 질의는 현재 질문을 우선 해석
+    has_exclusion = any(t in q for t in ("제외", "빼고", "-", "차집합", "여집합"))
+    if not has_exclusion:
+        if cargo is None:
+            cargo = hist_cargo
+        if year is None:
+            year = hist_year
+
+    # 예: "석탄-니켈", "니켈 제외" 같은 명시 질의는 반대 화종으로 해석(현재 데이터는 coal/nickel 2개 범주)
+    if has_exclusion:
+        if ("석탄" in q and "니켈" in q and "-" in q) or ("니켈" in q and "제외" in q):
+            cargo = "coal"
+        elif ("니켈" in q and "석탄" in q and "-" in q) or ("석탄" in q and "제외" in q):
+            cargo = "nickel"
+
+    scoped = rows
+    if cargo in {"coal", "nickel"}:
+        scoped = [r for r in scoped if r.get("cargo_type") == cargo]
+    if year is not None:
+        scoped = [r for r in scoped if int(r.get("year") or 0) == year]
+    if month is not None:
+        scoped = [r for r in scoped if int(r.get("month") or 0) == int(month)]
+    if species:
+        scoped = [r for r in scoped if str(r.get("brand") or "") == str(species)]
+    if vessel:
+        scoped = [r for r in scoped if str(r.get("vessel_name") or "") == str(vessel)]
+    if not scoped:
+        return "현재 업로드된 데이터에서 확인되지 않습니다."
+
+    summary = _aggregate_summary(scoped)
+    k = summary.get("kpis", {})
+    brand_table = summary.get("brand_table", [])
+    scope_parts: list[str] = []
+    if year is not None:
+        scope_parts.append(f"{year}년")
+    if month is not None:
+        scope_parts.append(f"{int(month)}월")
+    if cargo == "nickel":
+        scope_parts.append("니켈")
+    elif cargo == "coal":
+        scope_parts.append("석탄")
+    if species:
+        scope_parts.append(str(species))
+    if vessel:
+        scope_parts.append(str(vessel))
+    scope_label = (" ".join(scope_parts) + " 기준") if scope_parts else "업로드된 전체 데이터 기준"
+
+    def asks_average_rate(text: str) -> bool:
+        return any(t in text for t in ("평균 하역률", "평균하역률", "하역률", "평균 t/d", "평균 td"))
+
+    def asks_total_volume(text: str) -> bool:
+        # 구어체/동사형 질의 포함: "반입했어", "얼마나 들어왔", "몇 톤"
+        direct_tokens = (
+            "총 하역량",
+            "반입량",
+            "물량",
+            "volume",
+            "톤수",
+            "몇톤",
+            "몇 톤",
+            "얼마나",
+        )
+        action_tokens = ("반입", "들어왔", "들어온", "입항", "실렸", "적재")
+        if any(t in text for t in direct_tokens):
+            return True
+        if any(a in text for a in action_tokens) and ("톤" in text or "물량" in text or "얼마" in text):
+            return True
+        return False
+
+    def to_hhmm(total_minutes: int) -> str:
+        safe = max(0, int(total_minutes))
+        h = safe // 60
+        m = safe % 60
+        return f"{h}:{m:02d}"
+
+    def asks_issue_details(text: str) -> bool:
+        detail_tokens = (
+            "이슈사항",
+            "어떤 이슈",
+            "무슨 이슈",
+            "이슈 내용",
+            "이슈 상세",
+            "상세 이슈",
+            "상세 내용",
+            "세부 내용",
+            "내역",
+            "어떤 문제가",
+            "문제사항",
+        )
+        if any(t in text for t in detail_tokens):
+            return True
+        # '이슈'라는 단어가 없더라도 상세 조회 뉘앙스면 상세 응답 경로로 유도
+        nuance_tokens = ("알려줘", "보여줘", "뭐야", "무엇", "어떤", "자세히", "상세히")
+        category_hint = any(cat in text for cat in ISSUE_CATEGORY_RULES.keys()) or any(
+            kw in text for kws in ISSUE_CATEGORY_RULES.values() for kw in kws
+        )
+        if category_hint and any(n in text for n in nuance_tokens):
+            return True
+        if any(n in text for n in nuance_tokens) and any(k in text for k in ("이슈", "문제", "트러블")):
+            return True
+        return False
+
+    def infer_requested_issue_category(text: str) -> Optional[str]:
+        for category, keywords in ISSUE_CATEGORY_RULES.items():
+            if category.lower() in text:
+                return category
+            if any(k.lower() in text for k in keywords):
+                return category
+        return None
+
+    def summarize_issue_details(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # 카테고리별 시간/건수 집계: "돌발정비 총 6:45 (2건)" 형태를 만들기 위함
+        bucket: dict[str, dict[str, Any]] = {}
+        for row in items:
+            remark_durations = row.get("remark_durations") or []
+            if remark_durations:
+                for d in remark_durations:
+                    label = str(d.get("label") or "")
+                    mins = int(d.get("total_minutes") or 0)
+                    hhmm = str(d.get("time_hhmm") or to_hhmm(mins))
+                    tags = _classify_issue_tags(label) or row.get("issue_tags") or ["기타"]
+                    tag = next((t for t in tags if t and t != "기타"), tags[0] if tags else "기타")
+                    if tag not in bucket:
+                        bucket[tag] = {"minutes": 0, "count": 0, "details": [], "seen": set()}
+                    bucket[tag]["minutes"] += max(0, mins)
+                    bucket[tag]["count"] += 1
+                    detail_label = re.sub(r"^[\-\u2022○●■□▶▷\s:]+", "", label).strip()
+                    if not detail_label:
+                        detail_label = tag
+                    detail_text = f"{detail_label} ({hhmm})"
+                    key = detail_text.lower()
+                    if key not in bucket[tag]["seen"]:
+                        bucket[tag]["seen"].add(key)
+                        bucket[tag]["details"].append(detail_text)
+            else:
+                tags = row.get("issue_tags") or ["기타"]
+                for tag in tags:
+                    resolved = tag or "기타"
+                    if resolved not in bucket:
+                        bucket[resolved] = {"minutes": 0, "count": 0, "details": [], "seen": set()}
+                    bucket[resolved]["count"] += 1
+
+        rows_out = [
+            {
+                "category": cat,
+                "total_minutes": v["minutes"],
+                "count": v["count"],
+                "details": v["details"],
+            }
+            for cat, v in bucket.items()
+            if v["count"] > 0
+        ]
+        rows_out.sort(key=lambda x: (x["total_minutes"], x["count"]), reverse=True)
+        return rows_out
+
+    if asks_average_rate(q):
+        v = int(round(float(k.get("avg_unloading_rate", 0) or 0)))
+        return f"{scope_label} 평균 하역률은 {v:,} t/d 입니다."
+    if asks_total_volume(q):
+        v = int(round(float(k.get("total_volume_ton", 0) or 0)))
+        return f"{scope_label} 총 하역량은 {v:,} t 입니다."
+    if any(t in q for t in ("총 척수", "척수", "선박 수", "vessel")):
+        v = int(round(float(k.get("total_vessels", 0) or 0)))
+        return f"{scope_label} 총 척수는 {v:,} 척 입니다."
+    if asks_issue_details(q):
+        issue_rows = summarize_issue_details(scoped)
+        requested_category = infer_requested_issue_category(q)
+        if requested_category:
+            issue_rows = [r for r in issue_rows if r.get("category") == requested_category]
+        if not issue_rows:
+            return f"{scope_label} 이슈사항은 확인되지 않습니다."
+        if requested_category and issue_rows:
+            row = issue_rows[0]
+            lines = [f"{scope_label} {row['category']} 총 {to_hhmm(int(row['total_minutes']))} ({int(row['count'])}건)"]
+            for d in row.get("details", [])[:5]:
+                lines.append(f"- {d}")
+            return "\n".join(lines)
+
+        lines = [f"{scope_label} 주요 이슈 상세입니다."]
+        for row in issue_rows[:3]:
+            lines.append(f"{row['category']} 총 {to_hhmm(int(row['total_minutes']))} ({int(row['count'])}건)")
+            for d in row.get("details", [])[:2]:
+                lines.append(f"- {d}")
+        return "\n".join(lines)
+    if any(t in q for t in ("이슈", "장애", "트러블", "건수")):
+        v = int(round(float(k.get("issue_count", 0) or 0)))
+        return f"{scope_label} 이슈 건수는 {v:,} 건 입니다."
+    if _is_brand_rank_question(question) and brand_table:
+        rank = _infer_rank_from_question(question)
+        if rank is None and any(t in q for t in ("그 다음", "다음", "next")):
+            previous_rank = _infer_rank_from_history(history or [])
+            rank = (previous_rank + 1) if previous_rank else 2
+        if rank is None:
+            rank = 1
+
+        idx = rank - 1
+        if idx < 0 or idx >= len(brand_table):
+            return f"{scope_label}에서 {rank}번째로 많이 들어온 품종은 확인되지 않습니다. (총 {len(brand_table)}개 품종)"
+
+        item = brand_table[idx]
+        b = str(item.get("brand") or "미확인")
+        v = int(round(float(item.get("volume_ton", 0) or 0)))
+        if rank == 1:
+            return f"{scope_label} 가장 많이 들어온 품종은 {b}이며 물량은 {v:,} t 입니다."
+        return f"{scope_label} {rank}번째로 많이 들어온 품종은 {b}이며 물량은 {v:,} t 입니다."
+
+    return None
 
 
 if PUBLIC_DIR.exists():
@@ -420,6 +1287,14 @@ async def debug_request_trace(request: Request, call_next) -> Response:
 @app.get("/api/health")
 def health_check() -> JSONResponse:
     return JSONResponse({"status": "ok"})
+
+
+@app.get("/api/supply-news")
+def supply_news(cargo_type: str = "nickel") -> JSONResponse:
+    ct = (cargo_type or "nickel").strip().lower()
+    if ct not in ("nickel", "coal"):
+        raise HTTPException(status_code=400, detail="cargo_type은 nickel 또는 coal 이어야 합니다.")
+    return JSONResponse(get_supply_news_payload(ct))
 
 
 @app.get("/api/config")
@@ -516,6 +1391,48 @@ def unloading_data_summary(
     parsed_brands = [b.strip() for b in (brands or "").split(",") if b.strip()]
     filtered = _filter_rows(rows, cargo_type, start_year, end_year, parsed_brands or None)
     return JSONResponse(_aggregate_summary(filtered))
+
+
+@app.post("/api/unloading-data/chat")
+async def unloading_data_chat(request: Request) -> JSONResponse:
+    payload = await request.json()
+    question = str(payload.get("question") or "").strip()
+    history_raw = payload.get("history")
+    if not question:
+        raise HTTPException(status_code=400, detail="질문(question)이 필요합니다.")
+    if _is_ambiguous_chat_question(question):
+        return JSONResponse(
+            {
+                "answer": (
+                    "질문의 의도를 정확히 파악하기 어려워요. "
+                    "예: '2025년도 니켈 평균 하역률', '기상불량(우천대기) 총 시간', "
+                    "'가장 많이 들어온 품종과 물량'처럼 구체적으로 물어봐 주세요."
+                ),
+                "summary": {},
+            }
+        )
+
+    # 챗봇은 화면 필터와 무관하게 업로드된 엑셀 전체 데이터를 기준으로 답변한다.
+    rows = _get_unloading_dataset()
+    history = _normalize_chat_history(history_raw)
+    parsed_query = _parse_query(question, rows)
+    merged_query = _merge_query_with_history(parsed_query, history, rows)
+    rule_based_answer = _build_rule_based_chat_answer(question, rows, history=history, parsed_filters=merged_query)
+    if rule_based_answer:
+        return JSONResponse({"answer": _format_numbers_with_commas(rule_based_answer), "summary": {}})
+
+    summary = _aggregate_summary(rows)
+    dynamic_summary = _compute_dynamic_chat_summary(rows, merged_query)
+    context_json = json.dumps(dynamic_summary, ensure_ascii=False)
+    answer = _chat_completion_with_openai(question, context_json, history=history)
+    if not answer:
+        answer = (
+            "요청하신 내용을 업로드된 데이터에서 명확히 찾지 못했습니다. "
+            "질문 대상을 조금 더 구체적으로 알려주세요. "
+            "(예: 화종/연도/지표/브랜드)"
+        )
+    answer = _format_numbers_with_commas(answer)
+    return JSONResponse({"answer": answer, "summary": summary})
 
 
 @app.get("/")

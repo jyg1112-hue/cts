@@ -1,0 +1,134 @@
+<h2>날씨 위젯 레이아웃 — 어떤 방식이 맞나요?</h2>
+<p class="subtitle">뉴칼레도니아 실시간 날씨를 하역 데이터 대시보드에 넣는 세 가지 방식</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px 12px;">
+      <!-- Mini dashboard mockup -->
+      <div style="font-size:10px;color:#6b7280;margin-bottom:6px;font-weight:700;">하역 데이터 대시보드</div>
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 2</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 3</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 4</div>
+      </div>
+      <!-- Weather compact card spanning full width -->
+      <div style="background:linear-gradient(135deg,#1a3a5c,#2d6a9f);border-radius:7px;padding:8px 10px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div>
+          <div style="font-size:8px;opacity:0.75;margin-bottom:2px;">🌏 뉴칼레도니아 누메아</div>
+          <div style="font-size:18px;font-weight:800;line-height:1;">26°</div>
+          <div style="font-size:8px;opacity:0.85;">맑음</div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <div style="text-align:center;background:rgba(255,255,255,0.15);border-radius:5px;padding:4px 6px;">
+            <div style="font-size:8px;opacity:0.75;">내일</div>
+            <div style="font-size:10px;">☁️</div>
+            <div style="font-size:9px;font-weight:700;">24°</div>
+          </div>
+          <div style="text-align:center;background:rgba(255,255,255,0.15);border-radius:5px;padding:4px 6px;">
+            <div style="font-size:8px;opacity:0.75;">모레</div>
+            <div style="font-size:10px;">🌧️</div>
+            <div style="font-size:9px;font-weight:700;">22°</div>
+          </div>
+        </div>
+      </div>
+      <!-- Chart row below -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:40px;">차트 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:40px;">차트 2</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:40px;">공급 이슈</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — KPI 행 아래 풀-와이드 배너</h3>
+      <p>KPI 4개 아래, 차트 위에 가로로 긴 날씨 배너. 현재 날씨 + 2일 예보를 한 줄에 표시. 눈에 잘 띄고 공간 낭비 없음.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px 12px;">
+      <div style="font-size:10px;color:#6b7280;margin-bottom:6px;font-weight:700;">하역 데이터 대시보드</div>
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:6px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 2</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 3</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 4</div>
+      </div>
+      <!-- 3-col chart row, last col = weather panel -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:80px;">차트 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:80px;">차트 2</div>
+        <!-- Weather panel replacing supply news -->
+        <div style="background:linear-gradient(160deg,#0f3460,#1a6ba0);border-radius:5px;padding:8px;color:#fff;min-height:80px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div style="font-size:7px;opacity:0.75;font-weight:700;">🌏 뉴칼레도니아</div>
+          <div>
+            <div style="font-size:20px;font-weight:800;">26°</div>
+            <div style="font-size:7px;opacity:0.85;">맑음 · 오늘</div>
+          </div>
+          <div style="display:flex;gap:3px;">
+            <div style="flex:1;text-align:center;background:rgba(255,255,255,0.12);border-radius:3px;padding:3px;">
+              <div style="font-size:6px;opacity:0.7;">내일</div>
+              <div style="font-size:8px;">☁️ 24°</div>
+            </div>
+            <div style="flex:1;text-align:center;background:rgba(255,255,255,0.12);border-radius:3px;padding:3px;">
+              <div style="font-size:6px;opacity:0.7;">모레</div>
+              <div style="font-size:8px;">🌧 22°</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Supply news row -->
+      <div style="margin-top:4px;background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:30px;">공급 이슈 뉴스</div>
+    </div>
+    <div class="card-body">
+      <h3>B — 차트 그리드 3번째 칸에 패널</h3>
+      <p>기존 3-column 레이아웃에 날씨 패널을 별도 칸으로 추가. 공급 이슈 뉴스 옆에 자연스럽게 배치. 세로로 충분히 정보 표시 가능.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px 12px;">
+      <!-- Header with weather -->
+      <div style="background:#1a3a5c;border-radius:5px 5px 0 0;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div style="font-size:9px;color:#fff;font-weight:700;">⚓ 하역 데이터 대시보드</div>
+        <div style="background:rgba(255,255,255,0.12);border-radius:4px;padding:3px 8px;display:flex;align-items:center;gap:5px;">
+          <span style="font-size:9px;">☀️</span>
+          <span style="font-size:9px;color:#fff;font-weight:700;">26°</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.7);">누메아</span>
+        </div>
+      </div>
+      <!-- Main content -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:4px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 2</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 3</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;">KPI 4</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:60px;">차트 1</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:60px;">차트 2</div>
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:6px;font-size:8px;color:#6b7280;min-height:60px;">공급 이슈</div>
+      </div>
+      <!-- Expandable forecast row -->
+      <div style="margin-top:4px;background:#e0f0ff;border:1px solid #93c5fd;border-radius:5px;padding:5px 8px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:8px;color:#1a3a5c;font-weight:700;">3일 예보</span>
+        <div style="display:flex;gap:4px;">
+          <span style="font-size:8px;background:#fff;border-radius:3px;padding:2px 5px;">오늘 ☀️ 26°</span>
+          <span style="font-size:8px;background:#fff;border-radius:3px;padding:2px 5px;">내일 ☁️ 24°</span>
+          <span style="font-size:8px;background:#fff;border-radius:3px;padding:2px 5px;">모레 🌧 22°</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — 헤더 온도 + 하단 예보 바</h3>
+      <p>헤더에 현재 온도만 간결하게 표시, 아래에 3일 예보 스트립. 기존 레이아웃 변경 최소화. 항상 보이지만 공간을 거의 차지 안 함.</p>
+    </div>
+  </div>
+
+</div>

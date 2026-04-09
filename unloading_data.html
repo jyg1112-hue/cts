@@ -88,18 +88,101 @@
       border-radius: 10px;
       box-shadow: 0 1px 6px rgba(0,0,0,0.12);
     }
-    .topbar {
-      padding: 14px;
-      display: grid;
-      grid-template-columns: 1.2fr 0.8fr 0.8fr 2.2fr;
-      gap: 10px;
+    .filter-header {
       margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .topbar {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #e5e7eb;
+      background: #ffffff;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-width: 0;
+      flex: 1;
+    }
+    .filter-fields {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
+    .filter-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    .topbar-chat {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 280px;
+      max-width: 440px;
+      flex: 1 1 280px;
+    }
+    .chat-inline-input {
+      width: 100%;
+      height: 38px;
+      border: 1px solid #d1d5db;
+      border-radius: 999px;
+      padding: 0 14px;
+      font-size: 13px;
+      color: #111827;
+      background: #fff;
+    }
+    .chat-inline-btn {
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
     }
     .field label {
       display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 2px;
+    }
+    .field {
+      min-width: 130px;
+      flex: 0 0 auto;
+    }
+    .field.brand { min-width: 170px; }
+    .pill-field {
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 7px 12px;
+    }
+    .pill-select-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .pill-caret {
+      position: absolute;
+      right: 0;
+      color: #9ca3af;
+      font-size: 10px;
+      pointer-events: none;
     }
     .row { display: flex; gap: 8px; }
     .seg button {
@@ -119,30 +202,151 @@
     }
     select, .brand-input {
       width: 100%;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: #1f2937;
-      border-radius: 6px;
-      padding: 7px 10px;
-      height: 34px;
+      border: none;
+      background: transparent;
+      color: #111827;
+      border-radius: 0;
+      padding: 0;
+      height: auto;
+      font-size: 16px;
+      line-height: 1.05;
+      font-weight: 700;
+      outline: none;
+      appearance: none;
+      padding-right: 14px;
+    }
+    .filter-btn {
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .filter-btn.reset {
+      background: transparent;
+      color: #374151;
+    }
+    .filter-btn.apply {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
     }
     .kpis {
       display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
-      gap: 10px;
-      margin-bottom: 12px;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      background: #f8fafc;
     }
-    .kpi { padding: 16px; }
-    .kpi .label { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-    .kpi .value { font-size: 36px; font-weight: 800; line-height: 1.1; color: #111827; }
-    .kpi .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .kpi {
+      padding: 12px 14px;
+      border-right: 1px solid #e5e7eb;
+    }
+    .kpi:last-child { border-right: none; }
+    .kpi .label { color: #6b7280; font-size: 12px; margin-bottom: 6px; }
+    .kpi .value { font-size: 30px; font-weight: 800; line-height: 1.1; color: #111827; }
+    .kpi .sub { color: #6b7280; font-size: 12px; margin-top: 4px; }
     .main-grid {
       display: grid;
-      grid-template-columns: 1.6fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 12px;
     }
     .chart-panel { padding: 16px; min-height: 420px; }
+    .supply-panel {
+      display: flex;
+      flex-direction: column;
+      height: 420px;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+    .supply-panel h3 { flex-shrink: 0; }
+    .supply-feed {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+    }
+    .supply-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: var(--panel-2);
+    }
+    .supply-card a {
+      color: var(--head);
+      font-weight: 700;
+      font-size: 13px;
+      text-decoration: none;
+      line-height: 1.35;
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      word-break: break-word;
+    }
+    .supply-card a:hover { text-decoration: underline; }
+    .supply-card .summary {
+      font-size: 12px;
+      color: #374151;
+      margin-top: 4px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: break-word;
+    }
+    .supply-card .meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .supply-pagination {
+      margin-top: 8px;
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .supply-page-btn {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #4b5563;
+      border-radius: 6px;
+      min-width: 30px;
+      height: 26px;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0 8px;
+    }
+    .supply-page-btn.active {
+      background: var(--head);
+      border-color: var(--head);
+      color: #fff;
+      font-weight: 700;
+    }
+    .supply-tracking {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--line);
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .supply-tracking details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #4b5563;
+    }
+    .supply-tracking ul { margin: 6px 0 0 18px; padding: 0; }
+    .supply-tracking li { margin-bottom: 4px; }
     h2 { margin: 0 0 6px 0; font-size: 26px; color: var(--head); }
     h3 { color: #1f2937; margin: 0 0 8px 0; }
     .subtitle { color: var(--muted); font-size: 13px; }
@@ -160,8 +364,8 @@
     .monthly-axis {
       position: absolute;
       top: 8px;
-      bottom: 24px;
-      width: 52px;
+      bottom: 30px;
+      width: 44px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -173,23 +377,24 @@
     .monthly-axis.right { right: 4px; align-items: flex-start; padding-left: 6px; }
     .monthly-plot-area {
       position: absolute;
-      left: 52px;
-      right: 52px;
+      left: 44px;
+      right: 44px;
       top: 8px;
-      bottom: 24px;
+      bottom: 30px;
       border-left: 1px solid #d1d5db;
       border-bottom: 1px solid #d1d5db;
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
       align-items: flex-end;
-      gap: 8px;
-      padding: 0 8px 8px 8px;
+      gap: 4px;
+      padding: 0 4px 8px 4px;
     }
     .monthly-line-layer {
       position: absolute;
-      left: 52px;
-      right: 52px;
+      left: 44px;
+      right: 44px;
       top: 8px;
-      bottom: 24px;
+      bottom: 30px;
       pointer-events: none;
       overflow: hidden;
     }
@@ -209,13 +414,14 @@
       fill: var(--orange);
       stroke: #fff;
       stroke-width: 1.5;
+      pointer-events: auto;
     }
-    .month-col { flex: 1; min-width: 26px; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 2; }
-    .bars { width: 100%; display: flex; align-items: end; gap: 3px; height: 230px; }
+    .month-col { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; z-index: 2; width: 100%; }
+    .bars { width: 100%; display: flex; align-items: end; gap: 2px; height: 215px; min-width: 0; }
     .bar { flex: 1; border-radius: 4px 4px 0 0; }
     .bar.current { background: var(--blue); }
     .bar.prev { background: var(--blue-light); opacity: 0.75; }
-    .month-label { font-size: 12px; color: var(--muted); }
+    .month-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
     .issue-top { display: flex; gap: 12px; align-items: center; }
     .donut { width: 180px; height: 180px; border-radius: 50%; position: relative; }
     .donut::after {
@@ -236,9 +442,33 @@
     .issue-bar-track { background: #f3f4f6; border-radius: 999px; height: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
     .issue-bar-fill { background: var(--orange); height: 100%; border-radius: 999px; }
     .table-panel { padding: 14px; }
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: start;
+    }
+    .main-grid .chart-panel h3,
+    .bottom-grid .table-panel > h3,
+    .bottom-grid .weather-panel .weather-panel-title {
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 700;
+      color: #1f2937;
+    }
+    .main-grid .chart-panel,
+    .bottom-grid .table-panel,
+    .bottom-grid .weather-panel {
+      font-size: 13px;
+    }
+    .bottom-grid .table-panel th,
+    .bottom-grid .table-panel td {
+      font-size: 13px;
+    }
     .brand-detail-grid {
       display: grid;
-      grid-template-columns: 0.9fr 1.3fr;
+      grid-template-columns: 0.82fr 1.18fr;
       gap: 12px;
       margin-top: 8px;
     }
@@ -423,12 +653,217 @@
     }
     .modal-btn.cancel { background: #6b7280; color: #fff; }
     .modal-btn.submit { background: #2563eb; color: #fff; }
+    .chat-modal {
+      width: 620px;
+      max-width: 94vw;
+      height: 68vh;
+      max-height: 760px;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      overflow: hidden;
+    }
+    .chat-modal-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+    }
+    .chat-modal-title {
+      margin: 0;
+      font-size: 16px;
+      color: #1a3a5c;
+      font-weight: 700;
+    }
+    .chat-modal-close {
+      border: none;
+      background: transparent;
+      color: #6b7280;
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      background: #fff;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .chat-msg {
+      max-width: 88%;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .chat-msg.user {
+      margin-left: auto;
+      background: #dbeafe;
+      border: 1px solid #bfdbfe;
+      color: #1e3a8a;
+    }
+    .chat-msg.bot {
+      margin-right: auto;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      color: #1f2937;
+    }
+    .chat-input-row {
+      border-top: 1px solid #e5e7eb;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      background: #f8fafc;
+    }
+    .chat-input-row input {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 13px;
+    }
+    .chat-send-btn {
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 8px;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
     @media (max-width: 1100px) {
-      .topbar { grid-template-columns: 1fr 1fr; }
+      .topbar { align-items: flex-start; }
+      .topbar-left { flex: 1 1 100%; }
+      .filter-fields { flex: 1 1 100%; }
+      .topbar-chat { margin-left: 0; max-width: none; }
       .kpis { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
       .main-grid { grid-template-columns: 1fr; }
+      .bottom-grid { grid-template-columns: 1fr; }
       .brand-detail-grid { grid-template-columns: 1fr; }
     }
+    /* ── 날씨 패널 ── */
+    .weather-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 360px;
+      padding: 0;
+    }
+    .weather-header {
+      padding: 12px 14px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #f3f4f6;
+      flex-shrink: 0;
+    }
+    .weather-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+    }
+    .weather-live-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: #10b981;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 20px;
+      padding: 2px 8px;
+      font-weight: 600;
+    }
+    .weather-live-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+    .weather-map-area {
+      flex: 1;
+      position: relative;
+      padding: 8px 10px 6px;
+      min-height: 0;
+      max-height: 170px;
+    }
+    .weather-map-area svg {
+      width: 100%;
+      height: 100%;
+      min-height: 150px;
+    }
+    .weather-region-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 10px 12px 6px;
+      align-items: stretch;
+    }
+    .weather-region-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fbfdff;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .weather-region-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1f2937;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eef2f7;
+      background: #f8fafc;
+    }
+    .weather-tooltip {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px 10px;
+      width: 130px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+    .weather-tooltip.visible { display: block; }
+    .weather-tooltip-name {
+      font-size: 10px;
+      font-weight: 700;
+      color: #1a3a5c;
+      margin-bottom: 6px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .weather-tooltip-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 0;
+      font-size: 10px;
+    }
+    .weather-tooltip-day { color: #9ca3af; width: 26px; flex-shrink: 0; }
+    .weather-tooltip-icon { font-size: 11px; }
+    .weather-tooltip-label { color: #9ca3af; font-size: 9px; }
+    .weather-tooltip-temp { font-size: 11px; font-weight: 700; color: #1f2937; margin-left: auto; }
+    .weather-footer {
+      padding: 7px 14px;
+      border-top: 1px solid #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .weather-footer-text { font-size: 10px; color: #9ca3af; }
   </style>
 </head>
 <body>
@@ -445,49 +880,74 @@
   <main class="container">
     <div id="uploaded-files" class="uploaded-files" style="margin-bottom:10px;"></div>
 
-    <section class="panel topbar">
-      <div class="field">
-        <label>화물</label>
-        <div class="seg row">
-          <button id="cargo-coal" class="active">석탄</button>
-          <button id="cargo-nickel">니켈</button>
+    <section class="panel filter-header">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div class="filter-fields">
+            <div class="field pill-field">
+              <label>화물</label>
+              <div class="pill-select-wrap">
+                <select id="cargo-type">
+                  <option value="coal">석탄</option>
+                  <option value="nickel">니켈</option>
+                </select>
+                <span class="pill-caret">▾</span>
+              </div>
+            </div>
+            <div class="field pill-field">
+              <label>시작</label>
+              <div class="pill-select-wrap">
+                <select id="start-year"></select>
+                <span class="pill-caret">▾</span>
+              </div>
+            </div>
+            <div class="field pill-field">
+              <label>종료</label>
+              <div class="pill-select-wrap">
+                <select id="end-year"></select>
+                <span class="pill-caret">▾</span>
+              </div>
+            </div>
+            <div class="field brand pill-field">
+              <label>브랜드</label>
+              <div class="pill-select-wrap">
+                <select id="brands"></select>
+                <span class="pill-caret">▾</span>
+              </div>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button id="reset-filter-btn" class="filter-btn reset" type="button">초기화</button>
+            <button id="apply-filter-btn" class="filter-btn apply" type="button">적용</button>
+          </div>
+        </div>
+        <div class="topbar-chat">
+          <input id="chat-inline-input" class="chat-inline-input" type="text" placeholder="질문을 입력하세요. 예: 2025년도 니켈 평균 하역률은?" />
+          <button id="chat-open-btn" class="chat-inline-btn" type="button">입력</button>
         </div>
       </div>
-      <div class="field">
-        <label>시작 연도</label>
-        <select id="start-year"></select>
-      </div>
-      <div class="field">
-        <label>종료 연도</label>
-        <select id="end-year"></select>
-      </div>
-      <div class="field">
-        <label>브랜드</label>
-        <input id="brands" class="brand-input" placeholder="예: 석탄(인니), 석탄(러시아)" />
-      </div>
-    </section>
-
-    <section class="kpis">
-      <article class="panel kpi">
+      <div class="kpis">
+      <article class="kpi">
         <div class="label">총 하역량</div>
         <div id="kpi-volume" class="value">0 t</div>
         <div class="sub">선택 범위 합계</div>
       </article>
-      <article class="panel kpi">
+      <article class="kpi">
         <div class="label">총 척수</div>
         <div id="kpi-vessels" class="value">0 척</div>
         <div class="sub">중복 선박 제외</div>
       </article>
-      <article class="panel kpi">
+      <article class="kpi">
         <div class="label">평균 하역률</div>
         <div id="kpi-rate" class="value">0 t/d</div>
         <div class="sub">원본 시트 하역율 평균</div>
       </article>
-      <article class="panel kpi">
-        <div class="label">이슈 발생 건수</div>
+      <article class="kpi">
+        <div class="label">이슈 건수</div>
         <div id="kpi-issues" class="value">0 건</div>
         <div class="sub">비고 자동 분류 기준</div>
       </article>
+      </div>
     </section>
 
     <section class="main-grid">
@@ -509,9 +969,18 @@
         </div>
         <div id="issue-bars" class="issue-bars"></div>
       </article>
-    </section>
 
-    <section class="panel table-panel">
+      <article class="panel chart-panel supply-panel" id="supply-panel-wrap">
+        <h3 id="supply-panel-title">공급 이슈</h3>
+        <div id="supply-panel-body" class="supply-feed">
+          <div class="empty">불러오는 중…</div>
+        </div>
+        <div id="supply-panel-pagination" class="supply-pagination"></div>
+        <div id="supply-panel-tracking" class="supply-tracking"></div>
+      </article>
+    </section>
+    <section class="bottom-grid">
+      <section class="panel table-panel">
       <h3>브랜드 별 상세 현황</h3>
       <div class="brand-detail-grid">
         <div class="brand-chart-card">
@@ -538,6 +1007,101 @@
           <div id="table-empty" class="empty" style="display:none;">조회 결과가 없습니다.</div>
         </div>
       </div>
+      </section>
+      <article class="panel weather-panel" id="weather-panel">
+        <div class="weather-header">
+          <span class="weather-panel-title">날씨 현황</span>
+          <span class="weather-live-badge">
+            <span class="weather-live-dot"></span>실시간
+          </span>
+        </div>
+        <div class="weather-region-grid">
+          <section class="weather-region-card">
+            <div class="weather-region-title">인도네시아</div>
+            <div class="weather-map-area" id="weather-indo-map-area">
+              <div class="weather-tooltip" id="weather-tooltip-indo">
+                <div class="weather-tooltip-name" id="iwt-name"></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">오늘</span><span class="weather-tooltip-icon" id="iwt-d0-icon"></span><span class="weather-tooltip-label" id="iwt-d0-label"></span><span class="weather-tooltip-temp" id="iwt-d0-temp"></span></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">내일</span><span class="weather-tooltip-icon" id="iwt-d1-icon"></span><span class="weather-tooltip-label" id="iwt-d1-label"></span><span class="weather-tooltip-temp" id="iwt-d1-temp"></span></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">모레</span><span class="weather-tooltip-icon" id="iwt-d2-icon"></span><span class="weather-tooltip-label" id="iwt-d2-label"></span><span class="weather-tooltip-temp" id="iwt-d2-temp"></span></div>
+              </div>
+              <svg id="weather-indo-svg" viewBox="0 0 300 210" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <linearGradient id="indoOceanGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#dbeafe"/><stop offset="100%" stop-color="#bfdbfe"/></linearGradient>
+                  <linearGradient id="indoLandGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#dcfce7"/><stop offset="100%" stop-color="#86efac"/></linearGradient>
+                  <filter id="indoMarkerShadow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="rgba(0,0,0,0.15)"/></filter>
+                </defs>
+                <rect width="300" height="210" fill="url(#indoOceanGrad)" rx="6"/>
+                <path d="M22,84 Q46,70 74,72 Q101,74 117,86 Q100,97 74,98 Q50,99 30,91 Z" fill="url(#indoLandGrad)" stroke="#4ade80" stroke-width="0.8"/>
+                <path d="M118,95 Q139,78 169,78 Q194,79 214,92 Q194,103 170,104 Q144,105 124,98 Z" fill="url(#indoLandGrad)" stroke="#4ade80" stroke-width="0.8"/>
+                <path d="M212,113 Q235,98 260,101 Q279,104 286,116 Q267,127 246,128 Q226,129 215,120 Z" fill="url(#indoLandGrad)" stroke="#4ade80" stroke-width="0.8"/>
+                <g class="indo-marker" data-site-id="sumatra" style="cursor:pointer;" filter="url(#indoMarkerShadow)">
+                  <circle class="marker-ring" cx="70" cy="86" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/>
+                  <circle class="marker-dot" cx="70" cy="86" r="3.5" fill="#1a3a5c"/>
+                </g>
+                <text x="70" y="101" text-anchor="middle" font-size="7" fill="#374151" font-weight="700" pointer-events="none">Sumatra</text>
+                <text class="indo-marker-weather" data-site-id="sumatra" x="70" y="111" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="indo-marker" data-site-id="kalimantan" style="cursor:pointer;" filter="url(#indoMarkerShadow)">
+                  <circle class="marker-ring" cx="167" cy="93" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/>
+                  <circle class="marker-dot" cx="167" cy="93" r="3.5" fill="#1a3a5c"/>
+                </g>
+                <text x="167" y="108" text-anchor="middle" font-size="7" fill="#374151" font-weight="700" pointer-events="none">Kalimantan</text>
+                <text class="indo-marker-weather" data-site-id="kalimantan" x="167" y="118" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="indo-marker" data-site-id="sulawesi" style="cursor:pointer;" filter="url(#indoMarkerShadow)">
+                  <circle class="marker-ring" cx="246" cy="114" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/>
+                  <circle class="marker-dot" cx="246" cy="114" r="3.5" fill="#1a3a5c"/>
+                </g>
+                <text x="246" y="129" text-anchor="middle" font-size="7" fill="#374151" font-weight="700" pointer-events="none">Sulawesi</text>
+                <text class="indo-marker-weather" data-site-id="sulawesi" x="246" y="139" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+              </svg>
+            </div>
+          </section>
+          <section class="weather-region-card">
+            <div class="weather-region-title">뉴칼레도니아</div>
+            <div class="weather-map-area" id="weather-nc-map-area">
+              <div class="weather-tooltip" id="weather-tooltip-nc">
+                <div class="weather-tooltip-name" id="nwt-name"></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">오늘</span><span class="weather-tooltip-icon" id="nwt-d0-icon"></span><span class="weather-tooltip-label" id="nwt-d0-label"></span><span class="weather-tooltip-temp" id="nwt-d0-temp"></span></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">내일</span><span class="weather-tooltip-icon" id="nwt-d1-icon"></span><span class="weather-tooltip-label" id="nwt-d1-label"></span><span class="weather-tooltip-temp" id="nwt-d1-temp"></span></div>
+                <div class="weather-tooltip-row"><span class="weather-tooltip-day">모레</span><span class="weather-tooltip-icon" id="nwt-d2-icon"></span><span class="weather-tooltip-label" id="nwt-d2-label"></span><span class="weather-tooltip-temp" id="nwt-d2-temp"></span></div>
+              </div>
+              <svg id="weather-svg" viewBox="0 0 300 220" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <linearGradient id="wOceanGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#dbeafe"/><stop offset="100%" stop-color="#bfdbfe"/></linearGradient>
+                  <linearGradient id="wLandGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#d1fae5"/><stop offset="100%" stop-color="#a7f3d0"/></linearGradient>
+                  <filter id="wMarkerShadow" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="rgba(0,0,0,0.15)"/></filter>
+                </defs>
+                <rect width="300" height="220" fill="url(#wOceanGrad)" rx="6"/>
+                <g stroke="rgba(147,197,253,0.35)" stroke-width="0.5" fill="none">
+                  <path d="M0,65 Q30,60 60,65 Q90,70 120,65 Q150,60 180,65 Q210,70 240,65 Q270,60 300,65"/>
+                  <path d="M0,155 Q30,150 60,155 Q90,160 120,155 Q150,150 180,155 Q210,160 240,155 Q270,150 300,155"/>
+                </g>
+                <path d="M18,120 Q25,92 45,80 Q65,65 90,62 Q115,54 138,52 Q162,48 185,50 Q208,50 228,58 Q248,68 258,82 Q264,96 260,110 Q255,124 242,128 Q225,134 205,130 Q182,126 160,124 Q138,124 115,127 Q90,130 68,130 Q45,130 28,126 Z" fill="url(#wLandGrad)" stroke="#6ee7b7" stroke-width="0.8"/>
+                <path d="M80,80 Q105,65 130,62 Q155,56 175,60 Q190,60 200,68 Q185,74 165,76 Q145,76 125,78 Q105,80 85,84 Z" fill="#6ee7b7" opacity="0.3"/>
+                <g class="mine-marker" data-mine-id="noumea" style="cursor:pointer;" filter="url(#wMarkerShadow)"><circle class="marker-ring" cx="60" cy="118" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/><circle class="marker-dot" cx="60" cy="118" r="3.5" fill="#1a3a5c"/></g>
+                <text x="60" y="133" text-anchor="middle" font-size="6.5" fill="#374151" font-weight="700" pointer-events="none">Nouméa</text>
+                <text class="marker-weather" data-mine-id="noumea" x="60" y="143" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="mine-marker" data-mine-id="thio" style="cursor:pointer;" filter="url(#wMarkerShadow)"><circle class="marker-ring" cx="195" cy="100" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/><circle class="marker-dot" cx="195" cy="100" r="3.5" fill="#1a3a5c"/></g>
+                <text x="195" y="115" text-anchor="middle" font-size="6.5" fill="#374151" font-weight="700" pointer-events="none">Thio</text>
+                <text class="marker-weather" data-mine-id="thio" x="195" y="125" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="mine-marker" data-mine-id="koniambo" style="cursor:pointer;" filter="url(#wMarkerShadow)"><circle class="marker-ring" cx="148" cy="68" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/><circle class="marker-dot" cx="148" cy="68" r="3.5" fill="#1a3a5c"/></g>
+                <text x="148" y="83" text-anchor="middle" font-size="6.5" fill="#374151" font-weight="700" pointer-events="none">Koniambo</text>
+                <text class="marker-weather" data-mine-id="koniambo" x="148" y="93" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="mine-marker" data-mine-id="kouaoua" style="cursor:pointer;" filter="url(#wMarkerShadow)"><circle class="marker-ring" cx="224" cy="80" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/><circle class="marker-dot" cx="224" cy="80" r="3.5" fill="#1a3a5c"/></g>
+                <text x="224" y="95" text-anchor="middle" font-size="6.5" fill="#374151" font-weight="700" pointer-events="none">Kouaoua</text>
+                <text class="marker-weather" data-mine-id="kouaoua" x="224" y="105" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+                <g class="mine-marker" data-mine-id="goro" style="cursor:pointer;" filter="url(#wMarkerShadow)"><circle class="marker-ring" cx="236" cy="122" r="8" fill="rgba(26,58,92,0.1)" stroke="#1a3a5c" stroke-width="1.5"/><circle class="marker-dot" cx="236" cy="122" r="3.5" fill="#1a3a5c"/></g>
+                <text x="236" y="137" text-anchor="middle" font-size="6.5" fill="#374151" font-weight="700" pointer-events="none">Goro</text>
+                <text class="marker-weather" data-mine-id="goro" x="236" y="147" text-anchor="middle" font-size="9" pointer-events="none">—</text>
+              </svg>
+            </div>
+          </section>
+        </div>
+        <div class="weather-footer">
+          <span class="weather-footer-text"><span style="color:#10b981;font-weight:600;">●</span> Open-Meteo · 자동 갱신</span>
+          <span class="weather-footer-text" id="weather-last-updated">—</span>
+        </div>
+      </article>
     </section>
   </main>
 
@@ -569,7 +1133,171 @@
     </div>
   </div>
 
+  <div id="chat-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-modal-title">
+    <div class="modal chat-modal">
+      <div class="chat-modal-head">
+        <h3 id="chat-modal-title" class="chat-modal-title">대시보드 LLM 챗봇</h3>
+        <button id="chat-close-btn" class="chat-modal-close" type="button" aria-label="닫기">×</button>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg bot">질문을 입력해 주세요. 현재 필터 조건 기준으로 답변해 드립니다.</div>
+      </div>
+      <div class="chat-input-row">
+        <input id="chat-input" type="text" placeholder="예: 2025년도 니켈 평균 하역률은?" />
+        <button id="chat-send-btn" class="chat-send-btn" type="button">전송</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // ── 뉴칼레도니아 광산 날씨 ──────────────────────────────
+    const NEW_CALEDONIA_MINES = [
+      { id: 'noumea',   name: 'Nouméa',   lat: -22.2758, lon: 166.4580 },
+      { id: 'thio',     name: 'Thio',     lat: -21.6128, lon: 166.2178 },
+      { id: 'koniambo', name: 'Koniambo', lat: -20.9167, lon: 164.3500 },
+      { id: 'kouaoua',  name: 'Kouaoua',  lat: -21.3833, lon: 165.8167 },
+      { id: 'goro',     name: 'Goro',     lat: -22.2667, lon: 166.9833 },
+    ];
+    const INDONESIA_SITES = [
+      { id: 'kalimantan', name: 'Kalimantan', lat: -0.7893, lon: 113.9213, timezone: 'Asia/Jakarta' },
+      { id: 'sulawesi', name: 'Sulawesi', lat: -1.4300, lon: 121.4456, timezone: 'Asia/Makassar' },
+      { id: 'sumatra', name: 'Sumatra', lat: -0.5897, lon: 101.3431, timezone: 'Asia/Jakarta' }
+    ];
+
+    function wmoInfo(code) {
+      if (code === 0)                          return { icon: '☀️', label: '맑음' };
+      if (code <= 3)                           return { icon: '⛅', label: '구름' };
+      if (code <= 48)                          return { icon: '🌫️', label: '안개' };
+      if (code <= 55)                          return { icon: '🌦️', label: '이슬비' };
+      if (code <= 65)                          return { icon: '🌧️', label: '비' };
+      if (code <= 77)                          return { icon: '🌨️', label: '눈' };
+      if (code <= 82)                          return { icon: '🌦️', label: '소나기' };
+      if (code <= 86)                          return { icon: '🌨️', label: '눈소나기' };
+      return                                          { icon: '⛈️', label: '뇌우' };
+    }
+
+    async function fetchRegionWeather(sites, timezone) {
+      const BASE = 'https://api.open-meteo.com/v1/forecast';
+      const PARAMS = `current=temperature_2m,weathercode&daily=temperature_2m_max,weathercode&forecast_days=3&timezone=${encodeURIComponent(timezone)}`;
+
+      const results = await Promise.all(
+        sites.map(site =>
+          fetch(`${BASE}?latitude=${site.lat}&longitude=${site.lon}&${PARAMS}`)
+            .then(r => r.json())
+            .then(data => ({
+              id: site.id,
+              name: site.name,
+              currentTemp: Math.round(data.current.temperature_2m),
+              currentCode: data.current.weathercode,
+              daily: data.daily.temperature_2m_max.map((t, i) => ({
+                temp: Math.round(t),
+                code: data.daily.weathercode[i],
+              })),
+            }))
+        )
+      );
+      return results;
+    }
+
+    async function fetchWeather() {
+      const [newCaledonia, indonesia] = await Promise.all([
+        fetchRegionWeather(NEW_CALEDONIA_MINES, 'Pacific/Noumea'),
+        Promise.all(INDONESIA_SITES.map((site) => fetchRegionWeather([site], site.timezone).then((rows) => rows[0])))
+      ]);
+      return { newCaledonia, indonesia };
+    }
+
+    function renderNewCaledoniaWeatherMarkers(weatherData) {
+      weatherData.forEach(mine => {
+        const { icon } = wmoInfo(mine.currentCode);
+        document.querySelectorAll(`.marker-weather[data-mine-id="${mine.id}"]`).forEach(el => {
+          el.textContent = `${icon} ${mine.currentTemp}°`;
+        });
+        document.querySelectorAll(`.mine-marker[data-mine-id="${mine.id}"]`).forEach(el => {
+          el.dataset.weatherJson = JSON.stringify(mine);
+        });
+      });
+    }
+
+    function renderIndonesiaWeatherMarkers(weatherData) {
+      weatherData.forEach((site) => {
+        const { icon } = wmoInfo(site.currentCode);
+        document.querySelectorAll(`.indo-marker-weather[data-site-id="${site.id}"]`).forEach((el) => {
+          el.textContent = `${icon} ${site.currentTemp}°`;
+        });
+        document.querySelectorAll(`.indo-marker[data-site-id="${site.id}"]`).forEach((el) => {
+          el.dataset.weatherJson = JSON.stringify(site);
+        });
+      });
+    }
+
+    function updateWeatherTimestamp() {
+      const now = new Date();
+      const hhmm = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+      const el = document.getElementById('weather-last-updated');
+      if (el) el.textContent = `${hhmm} 업데이트`;
+    }
+
+    function bindWeatherTooltip({ markerSelector, mapAreaSelector, tooltipId, nameId, prefix, titlePrefix }) {
+      const tooltip = document.getElementById(tooltipId);
+      const mapArea = document.querySelector(mapAreaSelector);
+      if (!tooltip || !mapArea) return;
+      document.querySelectorAll(markerSelector).forEach(marker => {
+        marker.addEventListener('mouseenter', () => {
+          const raw = marker.dataset.weatherJson;
+          if (!raw) return;
+          const place = JSON.parse(raw);
+          document.getElementById(nameId).textContent = `${titlePrefix} ${place.name}`;
+          ['d0', 'd1', 'd2'].forEach((key, i) => {
+            const day = place.daily[i];
+            if (!day) return;
+            const { icon, label } = wmoInfo(day.code);
+            document.getElementById(`${prefix}-${key}-icon`).textContent = icon;
+            document.getElementById(`${prefix}-${key}-label`).textContent = label;
+            document.getElementById(`${prefix}-${key}-temp`).textContent = `${day.temp}°`;
+          });
+          const markerRect = marker.getBoundingClientRect();
+          const areaRect = mapArea.getBoundingClientRect();
+          let left = markerRect.left - areaRect.left - 65;
+          let top  = markerRect.top  - areaRect.top  - 110;
+          left = Math.max(0, Math.min(left, areaRect.width - 134));
+          top  = Math.max(0, top);
+          tooltip.style.left = left + 'px';
+          tooltip.style.top  = top  + 'px';
+          tooltip.classList.add('visible');
+          marker.querySelector('.marker-ring').setAttribute('stroke', '#3b82f6');
+          marker.querySelector('.marker-ring').setAttribute('fill', 'rgba(59,130,246,0.15)');
+          marker.querySelector('.marker-dot').setAttribute('fill', '#3b82f6');
+        });
+        marker.addEventListener('mouseleave', () => {
+          tooltip.classList.remove('visible');
+          marker.querySelector('.marker-ring').setAttribute('stroke', '#1a3a5c');
+          marker.querySelector('.marker-ring').setAttribute('fill', 'rgba(26,58,92,0.1)');
+          marker.querySelector('.marker-dot').setAttribute('fill', '#1a3a5c');
+        });
+      });
+    }
+
+    function initWeatherTooltip() {
+      bindWeatherTooltip({
+        markerSelector: '.indo-marker',
+        mapAreaSelector: '#weather-indo-map-area',
+        tooltipId: 'weather-tooltip-indo',
+        nameId: 'iwt-name',
+        prefix: 'iwt',
+        titlePrefix: '🌴'
+      });
+      bindWeatherTooltip({
+        markerSelector: '.mine-marker',
+        mapAreaSelector: '#weather-nc-map-area',
+        tooltipId: 'weather-tooltip-nc',
+        nameId: 'nwt-name',
+        prefix: 'nwt',
+        titlePrefix: '⛏'
+      });
+    }
+    // ────────────────────────────────────────────────────────
+
     const state = {
       cargoType: "coal",
       years: [],
@@ -581,7 +1309,12 @@
       selectedBrandsInput: "",
       sortKey: "volume_ton",
       sortDir: "desc",
-      summary: null
+      summary: null,
+      chatHistory: [],
+      supplyNewsItems: [],
+      supplyNewsPage: 1,
+      monthlyChartResizeObserver: null,
+      monthlyChartOnResize: null
     };
 
     const issuePalette = ["#d86b36", "#9ca3af", "#c58a22", "#66b123", "#2f87d8", "#f8f8f8", "#8a5cf6", "#4b5563"];
@@ -617,6 +1350,131 @@
       const resp = await fetch(`/api/unloading-data/summary?${params.toString()}`);
       if (!resp.ok) throw new Error("요약 데이터 로딩 실패");
       return resp.json();
+    }
+
+    async function fetchChatAnswer(question) {
+      const payload = {
+        question,
+        cargo_type: state.cargoType,
+        start_year: state.startYear,
+        end_year: state.endYear,
+        brands: state.selectedBrandsInput || "",
+        history: state.chatHistory,
+      };
+      const resp = await fetch("/api/unloading-data/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        let detail = "챗봇 응답 실패";
+        try {
+          const body = await resp.json();
+          detail = body.detail || detail;
+        } catch (_) {}
+        throw new Error(detail);
+      }
+      return resp.json();
+    }
+
+    function escapeHtml(s) {
+      if (s == null || s === "") return "";
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function safeSupplyUrl(url) {
+      const u = String(url || "").trim();
+      if (!/^https?:\/\//i.test(u)) return "#";
+      return u;
+    }
+
+    async function fetchSupplyNews() {
+      const params = new URLSearchParams();
+      params.set("cargo_type", state.cargoType);
+      const resp = await fetch(`/api/supply-news?${params.toString()}`);
+      if (!resp.ok) throw new Error("공급 뉴스 로딩 실패");
+      return resp.json();
+    }
+
+    function setSupplyPanelTitle() {
+      const titleEl = document.getElementById("supply-panel-title");
+      if (!titleEl) return;
+      titleEl.textContent = "공급·시장 이슈";
+    }
+
+    async function refreshSupplyNews() {
+      const body = document.getElementById("supply-panel-body");
+      const trackEl = document.getElementById("supply-panel-tracking");
+      const pageEl = document.getElementById("supply-panel-pagination");
+      if (!body || !trackEl || !pageEl) return;
+      setSupplyPanelTitle();
+      body.innerHTML = '<div class="empty">불러오는 중…</div>';
+      trackEl.innerHTML = "";
+      pageEl.innerHTML = "";
+      try {
+        const data = await fetchSupplyNews();
+        const items = data.items || [];
+        state.supplyNewsItems = items;
+        state.supplyNewsPage = 1;
+        const pageSize = 3;
+        const renderPage = () => {
+          const totalPages = Math.max(1, Math.ceil(state.supplyNewsItems.length / pageSize));
+          if (state.supplyNewsPage > totalPages) state.supplyNewsPage = totalPages;
+          const start = (state.supplyNewsPage - 1) * pageSize;
+          const viewItems = state.supplyNewsItems.slice(start, start + pageSize);
+          body.innerHTML = "";
+          if (!viewItems.length) {
+            body.innerHTML = '<div class="empty">검색 결과가 없습니다. 잠시 후 다시 시도해 보세요.</div>';
+          } else {
+            viewItems.forEach((it) => {
+              const card = document.createElement("div");
+              card.className = "supply-card";
+              const href = safeSupplyUrl(it.link);
+              const titleKo = it.title_ko || it.title || "";
+              const sumKo = it.summary_ko || "";
+              const pub = it.pub_date || "-";
+              card.innerHTML = `
+                <a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(titleKo)}</a>
+                <div class="summary">${escapeHtml(sumKo)}</div>
+                <div class="meta">${escapeHtml(pub)}</div>
+              `;
+              body.appendChild(card);
+            });
+          }
+          pageEl.innerHTML = "";
+          for (let p = 1; p <= totalPages; p += 1) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = `supply-page-btn${p === state.supplyNewsPage ? " active" : ""}`;
+            btn.textContent = String(p);
+            btn.addEventListener("click", () => {
+              state.supplyNewsPage = p;
+              renderPage();
+            });
+            pageEl.appendChild(btn);
+          }
+        };
+        if (!items.length) {
+          body.innerHTML = '<div class="empty">검색 결과가 없습니다. 잠시 후 다시 시도해 보세요.</div>';
+          pageEl.innerHTML = "";
+        } else {
+          renderPage();
+        }
+        const tracking = data.tracking || [];
+        if (tracking.length) {
+          const lines = tracking.map(
+            (t) => `<li><b>${escapeHtml(t.why_ko || "")}</b> — ${escapeHtml(t.queries || "")}</li>`
+          );
+          trackEl.innerHTML = `<details><summary>추적 키워드·목적</summary><ul>${lines.join("")}</ul></details>`;
+        }
+      } catch (error) {
+        console.error(error);
+        body.innerHTML = '<div class="empty">뉴스를 불러오지 못했습니다. 서버와 인터넷 연결을 확인해 주세요.</div>';
+      }
     }
 
     async function uploadExcelFile(file) {
@@ -719,6 +1577,24 @@
       endEl.value = String(state.endYear);
     }
 
+    function renderBrandSelect() {
+      const brandsEl = document.getElementById("brands");
+      if (!brandsEl) return;
+      const candidates = state.cargoType === "coal" ? state.brandsMeta.coal : state.brandsMeta.nickel;
+      brandsEl.innerHTML = "";
+      const allOpt = document.createElement("option");
+      allOpt.value = "";
+      allOpt.textContent = "전체";
+      brandsEl.appendChild(allOpt);
+      (candidates || []).forEach((brand) => {
+        const opt = document.createElement("option");
+        opt.value = brand;
+        opt.textContent = brand;
+        brandsEl.appendChild(opt);
+      });
+      brandsEl.value = state.selectedBrandsInput || "";
+    }
+
     function renderKpis() {
       const k = state.summary?.kpis || {};
       document.getElementById("kpi-volume").textContent = `${formatNumber(k.total_volume_ton)} t`;
@@ -727,8 +1603,20 @@
       document.getElementById("kpi-issues").textContent = `${formatNumber(k.issue_count)} 건`;
     }
 
+    function disconnectMonthlyChartObserver() {
+      if (state.monthlyChartResizeObserver) {
+        state.monthlyChartResizeObserver.disconnect();
+        state.monthlyChartResizeObserver = null;
+      }
+      if (state.monthlyChartOnResize) {
+        window.removeEventListener("resize", state.monthlyChartOnResize);
+        state.monthlyChartOnResize = null;
+      }
+    }
+
     function renderMonthlyChart() {
       const wrap = document.getElementById("chart-monthly");
+      disconnectMonthlyChartObserver();
       wrap.innerHTML = "";
       const monthly = state.summary?.monthly || [];
       if (!monthly.length) {
@@ -788,9 +1676,11 @@
         const prevBar = document.createElement("div");
         prevBar.className = "bar prev";
         prevBar.style.height = `${((prev?.volume_ton || 0) / leftAxisData.axisMax) * 100}%`;
+        prevBar.title = `${prevYear}년 ${month}월 하역량: ${formatNumber(prev?.volume_ton || 0)} t`;
         const curBar = document.createElement("div");
         curBar.className = "bar current";
         curBar.style.height = `${((curr?.volume_ton || 0) / leftAxisData.axisMax) * 100}%`;
+        curBar.title = `${currentYear}년 ${month}월 하역량: ${formatNumber(curr?.volume_ton || 0)} t`;
         bars.appendChild(prevBar);
         bars.appendChild(curBar);
         const label = document.createElement("div");
@@ -801,77 +1691,116 @@
         plotArea.appendChild(col);
       }
 
-      const plotRect = plotArea.getBoundingClientRect();
-      const width = Math.max(1, plotRect.width);
-      const height = Math.max(1, plotRect.height);
-      lineLayer.setAttribute("width", String(width));
-      lineLayer.setAttribute("height", String(height));
-      lineLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      const ctx = {
+        plotArea,
+        lineLayer,
+        leftAxisData,
+        rightAxisData,
+        currentByMonth,
+        currentYear
+      };
 
-      leftAxisData.ticks.forEach((tickValue) => {
-        const y = height - ((tickValue / leftAxisData.axisMax) * height);
-        const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        grid.setAttribute("x1", "0");
-        grid.setAttribute("x2", String(width));
-        grid.setAttribute("y1", String(y));
-        grid.setAttribute("y2", String(y));
-        grid.setAttribute("class", "monthly-grid-line");
-        lineLayer.appendChild(grid);
-      });
+      function syncMonthlyChartSvg() {
+        const { plotArea: pa, lineLayer: svg, leftAxisData: la, rightAxisData: ra, currentByMonth: cbm, currentYear: cy } = ctx;
+        if (!pa.isConnected || !svg.isConnected) return;
+        const width = Math.max(1, Math.floor(pa.clientWidth));
+        const height = Math.max(1, Math.floor(pa.clientHeight));
+        svg.setAttribute("width", String(width));
+        svg.setAttribute("height", String(height));
+        svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+        svg.innerHTML = "";
 
-      const monthCols = Array.from(plotArea.querySelectorAll(".month-col"));
-      const ratePoints = [];
-      monthCols.forEach((col, idx) => {
-        const month = idx + 1;
-        const data = currentByMonth[month];
-        if (!data) return;
-        const rateVal = Number(data.avg_unloading_rate || 0);
-        if (!Number.isFinite(rateVal)) return;
-        const colRect = col.getBoundingClientRect();
-        const x = (colRect.left + (colRect.width / 2)) - plotRect.left;
-        const y = height - ((rateVal / rightAxisData.axisMax) * height);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-        const xClamped = Math.max(0, Math.min(width, x));
-        const yClamped = Math.max(0, Math.min(height, y));
-        ratePoints.push({ x: xClamped, y: yClamped });
-      });
+        la.ticks.forEach((tickValue) => {
+          const y = height - (tickValue / la.axisMax) * height;
+          const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          grid.setAttribute("x1", "0");
+          grid.setAttribute("x2", String(width));
+          grid.setAttribute("y1", String(y));
+          grid.setAttribute("y2", String(y));
+          grid.setAttribute("class", "monthly-grid-line");
+          svg.appendChild(grid);
+        });
 
-      // 마지막 점(12월) 이후로 이어지는 아티팩트 방지를 위해 x 기준 정렬/중복 제거
-      ratePoints.sort((a, b) => a.x - b.x);
-      const cleanedRatePoints = [];
-      let prevX = null;
-      ratePoints.forEach((p) => {
-        if (prevX === null || Math.abs(p.x - prevX) > 0.01) {
-          cleanedRatePoints.push(p);
-          prevX = p.x;
+        const ratePoints = [];
+        for (let month = 1; month <= 12; month += 1) {
+          const data = cbm[month];
+          if (!data) continue;
+          const rateVal = Number(data.avg_unloading_rate || 0);
+          if (!Number.isFinite(rateVal)) continue;
+          const x = ((month - 0.5) / 12) * width;
+          const y = height - (rateVal / ra.axisMax) * height;
+          ratePoints.push({
+            x: Math.max(0, Math.min(width, x)),
+            y: Math.max(0, Math.min(height, y)),
+            month,
+            rateVal
+          });
         }
-      });
+        ratePoints.sort((a, b) => a.x - b.x);
+        const cleanedRatePoints = [];
+        let prevX = null;
+        ratePoints.forEach((p) => {
+          if (prevX === null || Math.abs(p.x - prevX) > 0.01) {
+            cleanedRatePoints.push(p);
+            prevX = p.x;
+          }
+        });
 
-      if (cleanedRatePoints.length >= 2) {
-        const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-        polyline.setAttribute("points", cleanedRatePoints.map((p) => `${p.x},${p.y}`).join(" "));
-        polyline.setAttribute("class", "monthly-rate-line");
-        lineLayer.appendChild(polyline);
+        if (cleanedRatePoints.length >= 2) {
+          const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+          polyline.setAttribute("points", cleanedRatePoints.map((p) => `${p.x},${p.y}`).join(" "));
+          polyline.setAttribute("class", "monthly-rate-line");
+          svg.appendChild(polyline);
+        }
+
+        cleanedRatePoints.forEach((p) => {
+          const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          c.setAttribute("cx", String(p.x));
+          c.setAttribute("cy", String(p.y));
+          c.setAttribute("r", "4");
+          c.setAttribute("class", "monthly-rate-dot");
+          c.setAttribute("title", `${cy}년 ${p.month}월 평균 하역률: ${formatNumber(p.rateVal, 0)} t/d`);
+          svg.appendChild(c);
+        });
       }
 
-      cleanedRatePoints.forEach((p) => {
-        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        c.setAttribute("cx", String(p.x));
-        c.setAttribute("cy", String(p.y));
-        c.setAttribute("r", "4");
-        c.setAttribute("class", "monthly-rate-dot");
-        lineLayer.appendChild(c);
-      });
+      const scheduleSync = () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            syncMonthlyChartSvg();
+          });
+        });
+      };
+      scheduleSync();
+
+      if (typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => {
+          syncMonthlyChartSvg();
+        });
+        ro.observe(wrap);
+        state.monthlyChartResizeObserver = ro;
+      } else {
+        state.monthlyChartOnResize = syncMonthlyChartSvg;
+        window.addEventListener("resize", state.monthlyChartOnResize);
+      }
     }
 
     function renderIssues() {
       const issues = state.summary?.issue_breakdown || [];
+      const issueExamples = state.summary?.issue_examples || {};
       const total = issues.reduce((acc, x) => acc + x.count, 0) || 1;
       const donutEl = document.getElementById("chart-issues");
       const listEl = document.getElementById("issue-list");
       const barsEl = document.getElementById("issue-bars");
       listEl.innerHTML = "";
       barsEl.innerHTML = "";
+      const makeIssueTooltip = (category, count, ratio) => {
+        const samples = issueExamples[category] || [];
+        const sampleText = samples.length
+          ? `\n주요 이슈 예시\n- ${samples.join("\n- ")}`
+          : "\n주요 이슈 예시 없음";
+        return `${category}: ${formatNumber(count)}건 (${formatNumber(ratio, 1)}%)${sampleText}`;
+      };
 
       let start = 0;
       const slices = issues
@@ -885,12 +1814,17 @@
           return { ...it, ratio, color, segment: s };
         });
       donutEl.style.background = slices.length ? `conic-gradient(${slices.map((s) => s.segment).join(",")})` : "#2b313a";
+      donutEl.title = slices.length
+        ? slices.map((s) => makeIssueTooltip(s.category, s.count, s.ratio)).join("\n\n")
+        : "이슈 데이터 없음";
 
       const topList = [...issues].sort((a, b) => b.count - a.count).slice(0, 6);
       topList.forEach((it, idx) => {
         const item = document.createElement("div");
         item.className = "issue-item";
         item.innerHTML = `<span><span class="dot" style="background:${issuePalette[idx % issuePalette.length]}"></span>${it.category}</span><b>${it.count}</b>`;
+        const ratio = (it.count / total) * 100;
+        item.title = makeIssueTooltip(it.category, it.count, ratio);
         listEl.appendChild(item);
       });
 
@@ -899,6 +1833,8 @@
         const row = document.createElement("div");
         row.className = "issue-bar-row";
         const percent = (it.count / max) * 100;
+        const ratio = (it.count / total) * 100;
+        row.title = makeIssueTooltip(it.category, it.count, ratio);
         row.innerHTML = `
           <div>${it.category}</div>
           <div class="issue-bar-track"><div class="issue-bar-fill" style="width:${percent}%"></div></div>
@@ -973,6 +1909,7 @@
         const percent = ((r.avg_unloading_rate || 0) / maxRate) * 100;
         const rowEl = document.createElement("div");
         rowEl.className = "brand-rate-row";
+        rowEl.title = `${r.brand}: 평균 하역률 ${formatNumber(r.avg_unloading_rate, 0)} t/d`;
         rowEl.innerHTML = `
           <div class="brand-rate-name" title="${r.brand}">${r.brand}</div>
           <div class="brand-rate-track"><div class="brand-rate-fill" style="width:${percent}%"></div></div>
@@ -988,14 +1925,26 @@
       renderIssues();
       renderBrandRateChart();
       renderBrandTable();
+      renderBrandSelect();
+    }
+
+    function appendChatMessage(role, text) {
+      const wrap = document.getElementById("chat-messages");
+      if (!wrap) return;
+      const msg = document.createElement("div");
+      msg.className = `chat-msg ${role === "user" ? "user" : "bot"}`;
+      msg.textContent = text;
+      wrap.appendChild(msg);
+      wrap.scrollTop = wrap.scrollHeight;
     }
 
     function wireEvents() {
-      const coalBtn = document.getElementById("cargo-coal");
-      const nickelBtn = document.getElementById("cargo-nickel");
+      const cargoType = document.getElementById("cargo-type");
       const startYear = document.getElementById("start-year");
       const endYear = document.getElementById("end-year");
       const brands = document.getElementById("brands");
+      const resetFilterBtn = document.getElementById("reset-filter-btn");
+      const applyFilterBtn = document.getElementById("apply-filter-btn");
       const fileInput = document.getElementById("excel-file-input");
       const uploadBtn = document.getElementById("upload-btn");
       const openUploadModalBtn = document.getElementById("open-upload-modal-btn");
@@ -1003,6 +1952,52 @@
       const uploadModal = document.getElementById("upload-modal");
       const sortableHeaders = document.querySelectorAll(".sortable-th");
       const modalUploadedTbody = document.getElementById("modal-uploaded-tbody");
+      const chatOpenBtn = document.getElementById("chat-open-btn");
+      const chatInlineInput = document.getElementById("chat-inline-input");
+      const chatModal = document.getElementById("chat-modal");
+      const chatCloseBtn = document.getElementById("chat-close-btn");
+      const chatSendBtn = document.getElementById("chat-send-btn");
+      const chatInput = document.getElementById("chat-input");
+
+      let chatLoading = false;
+      const openChatModal = () => chatModal.classList.add("show");
+      const closeChatModal = () => {
+        chatModal.classList.remove("show");
+        state.chatHistory = [];
+        const messages = document.getElementById("chat-messages");
+        if (messages) {
+          messages.innerHTML = '<div class="chat-msg bot">질문을 입력해 주세요. 업로드된 데이터 기준으로 답변해 드립니다.</div>';
+        }
+      };
+      const submitChat = async (rawText) => {
+        const text = String(rawText || "").trim();
+        if (!text || chatLoading) return;
+        chatLoading = true;
+        appendChatMessage("user", text);
+        state.chatHistory.push({ role: "user", content: text });
+        appendChatMessage("bot", "질문을 분석하는 중입니다...");
+        const wrap = document.getElementById("chat-messages");
+        const loadingMsg = wrap?.lastElementChild;
+        try {
+          const data = await fetchChatAnswer(text);
+          if (loadingMsg && loadingMsg.parentNode) {
+            loadingMsg.parentNode.removeChild(loadingMsg);
+          }
+          const answerText = data.answer || "답변을 생성하지 못했습니다.";
+          appendChatMessage("bot", answerText);
+          state.chatHistory.push({ role: "assistant", content: answerText });
+          if (state.chatHistory.length > 20) {
+            state.chatHistory = state.chatHistory.slice(-20);
+          }
+        } catch (error) {
+          if (loadingMsg && loadingMsg.parentNode) {
+            loadingMsg.parentNode.removeChild(loadingMsg);
+          }
+          appendChatMessage("bot", `오류: ${error.message || "챗봇 응답 실패"}`);
+        } finally {
+          chatLoading = false;
+        }
+      };
 
       openUploadModalBtn.addEventListener("click", () => {
         uploadModal.classList.add("show");
@@ -1012,6 +2007,42 @@
       });
       uploadModal.addEventListener("click", (e) => {
         if (e.target === uploadModal) uploadModal.classList.remove("show");
+      });
+      chatOpenBtn.addEventListener("click", async () => {
+        openChatModal();
+        const first = (chatInlineInput.value || "").trim();
+        if (first) {
+          chatInlineInput.value = "";
+          chatInput.value = "";
+          await submitChat(first);
+        }
+      });
+      chatCloseBtn.addEventListener("click", closeChatModal);
+      chatModal.addEventListener("click", (e) => {
+        if (e.target === chatModal) closeChatModal();
+      });
+      chatSendBtn.addEventListener("click", async () => {
+        const q = chatInput.value.trim();
+        if (!q) return;
+        chatInput.value = "";
+        await submitChat(q);
+      });
+      chatInput.addEventListener("keydown", async (e) => {
+        if (e.key !== "Enter" || e.shiftKey) return;
+        e.preventDefault();
+        const q = chatInput.value.trim();
+        if (!q) return;
+        chatInput.value = "";
+        await submitChat(q);
+      });
+      chatInlineInput.addEventListener("keydown", async (e) => {
+        if (e.key !== "Enter" || e.shiftKey) return;
+        e.preventDefault();
+        openChatModal();
+        const q = chatInlineInput.value.trim();
+        if (!q) return;
+        chatInlineInput.value = "";
+        await submitChat(q);
       });
       modalUploadedTbody.addEventListener("click", async (e) => {
         const target = e.target;
@@ -1031,39 +2062,47 @@
           state.uploadedFileDetails = meta.uploaded_file_details || state.uploadedFileDetails;
           state.startYear = null;
           state.endYear = null;
+          state.selectedBrandsInput = "";
+          renderYearSelects();
+          renderBrandSelect();
           await refreshSummary();
         } catch (error) {
           alert(error.message || "삭제 중 오류가 발생했습니다.");
         }
       });
 
-      coalBtn.addEventListener("click", async () => {
-        state.cargoType = "coal";
-        coalBtn.classList.add("active");
-        nickelBtn.classList.remove("active");
-        brands.placeholder = "예: 석탄(인니), 석탄(러시아)";
-        await refreshSummary();
+      cargoType.addEventListener("change", (e) => {
+        state.cargoType = e.target.value;
+        state.selectedBrandsInput = "";
+        renderBrandSelect();
       });
-      nickelBtn.addEventListener("click", async () => {
-        state.cargoType = "nickel";
-        nickelBtn.classList.add("active");
-        coalBtn.classList.remove("active");
-        brands.placeholder = "예: Ngo, Ouaco";
-        await refreshSummary();
-      });
-      startYear.addEventListener("change", async (e) => {
+      startYear.addEventListener("change", (e) => {
         state.startYear = Number(e.target.value);
         if (state.startYear > state.endYear) state.endYear = state.startYear;
-        await refreshSummary();
+        renderYearSelects();
       });
-      endYear.addEventListener("change", async (e) => {
+      endYear.addEventListener("change", (e) => {
         state.endYear = Number(e.target.value);
         if (state.endYear < state.startYear) state.startYear = state.endYear;
-        await refreshSummary();
+        renderYearSelects();
       });
-      brands.addEventListener("change", async (e) => {
+      brands.addEventListener("change", (e) => {
         state.selectedBrandsInput = e.target.value || "";
+      });
+      applyFilterBtn.addEventListener("click", async () => {
         await refreshSummary();
+        await refreshSupplyNews();
+      });
+      resetFilterBtn.addEventListener("click", async () => {
+        state.cargoType = "coal";
+        state.selectedBrandsInput = "";
+        state.endYear = state.years[state.years.length - 1] || null;
+        state.startYear = state.years[Math.max(0, state.years.length - 3)] || state.endYear;
+        cargoType.value = state.cargoType;
+        renderYearSelects();
+        renderBrandSelect();
+        await refreshSummary();
+        await refreshSupplyNews();
       });
       sortableHeaders.forEach((th) => {
         th.addEventListener("click", () => {
@@ -1098,6 +2137,9 @@
           state.uploadedFileDetails = meta.uploaded_file_details || state.uploadedFileDetails;
           state.startYear = null;
           state.endYear = null;
+          state.selectedBrandsInput = "";
+          renderYearSelects();
+          renderBrandSelect();
           await refreshSummary();
           fileInput.value = "";
           uploadModal.classList.remove("show");
@@ -1123,6 +2165,23 @@
     }
 
     async function init() {
+      // 날씨 툴팁 이벤트 먼저 등록 (데이터 없어도 구조는 존재)
+      initWeatherTooltip();
+
+      // 날씨 초기 로드 + 30분 자동 갱신
+      async function loadWeather() {
+        try {
+          const data = await fetchWeather();
+          renderIndonesiaWeatherMarkers(data.indonesia || []);
+          renderNewCaledoniaWeatherMarkers(data.newCaledonia || []);
+          updateWeatherTimestamp();
+        } catch (err) {
+          console.warn('날씨 로드 실패:', err);
+        }
+      }
+      loadWeather();
+      setInterval(loadWeather, 30 * 60 * 1000);
+
       try {
         const meta = await fetchMeta();
         state.years = meta.years || [];
@@ -1130,9 +2189,13 @@
         state.uploadedFiles = meta.uploaded_files || [];
         state.uploadedFileDetails = meta.uploaded_file_details || [];
         renderUploadedFiles();
+        const cargoType = document.getElementById("cargo-type");
+        if (cargoType) cargoType.value = state.cargoType;
         renderYearSelects();
+        renderBrandSelect();
         wireEvents();
         await refreshSummary();
+        await refreshSupplyNews();
       } catch (error) {
         console.error(error);
         alert("초기화 실패: API 상태를 확인해주세요.");
