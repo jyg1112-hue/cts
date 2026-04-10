@@ -1,0 +1,71 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Noto Sans KR', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, monospace;
+
+  --color-page-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-border: #e4e7ed;
+  --color-text: #1a2236;
+  --color-text-muted: #6b7a99;
+  --color-text-faint: #a8b3c8;
+
+  --color-ops: #2563eb;
+  --color-ops-bg: #eef3fd;
+  --color-ops-border: #c7d9fb;
+
+  --color-mx: #059669;
+  --color-mx-bg: #ecfaf5;
+  --color-mx-border: #a7e3cf;
+
+  --color-status-ok: #059669;
+  --color-status-warn: #d97706;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--color-page-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes live-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+}
+
+.animate-card-enter {
+  animation: card-enter 0.35s ease forwards;
+  opacity: 0;
+}
+
+.animate-live-dot {
+  animation: live-dot-pulse 2.4s ease-in-out infinite;
+}

@@ -359,6 +359,7 @@ body {
     </div>
     <button class="btn btn-blue" onclick="openExcelModal()">Import</button>
     <button class="btn btn-blue" onclick="openShipModal()">선박 추가</button>
+    <button class="btn btn-blue" onclick="compactShipSchedule()">재정렬</button>
     <button class="btn btn-blue" onclick="openMaintModal()">청소</button>
     <button class="btn btn-blue" onclick="openJeonbiModal()">정비</button>
     <button class="btn btn-blue" onclick="downloadImage()">이미지</button>
@@ -1581,6 +1582,51 @@ function normalizeImportedShipSequenceWithGap(gapHours = 2) {
     ships[i].start = toDTLocal(newStart);
     ships[i].end = toDTLocal(newEnd);
   }
+}
+
+function getArrivalConstraint(item) {
+  if (!item || !item.blDate) return null;
+  const arrival = parseDate(item.blDate);
+  if (!arrival || Number.isNaN(arrival.getTime())) return null;
+  return arrival;
+}
+
+// 재정렬: 첫 선박은 고정, 뒤 선박은 좌로 밀착(단, 입항일 이전 접안 금지)
+function compactShipSchedule() {
+  const ships = items
+    .filter(i => i.type === 'ship' && parseDT(i.start) && parseDT(i.end))
+    .sort((a, b) => parseDT(a.start) - parseDT(b.start));
+
+  if (ships.length <= 1) {
+    alert('재정렬할 선박이 부족합니다.');
+    return;
+  }
+
+  pushUndo();
+  let prevEnd = parseDT(ships[0].end);
+
+  for (let i = 1; i < ships.length; i++) {
+    const ship = ships[i];
+    const curStart = parseDT(ship.start);
+    const curEnd = parseDT(ship.end);
+    if (!curStart || !curEnd) continue;
+
+    const durationMs = Math.max(SNAP_MS, curEnd.getTime() - curStart.getTime());
+    const arrivalConstraint = getArrivalConstraint(ship);
+    let newStart = new Date(prevEnd.getTime());
+    if (arrivalConstraint && newStart < arrivalConstraint) {
+      newStart = arrivalConstraint;
+    }
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    ship.start = toDTLocal(newStart);
+    ship.end = toDTLocal(newEnd);
+    prevEnd = newEnd;
+  }
+
+  ensureNickelToCoalMaintCoverage();
+  save();
+  render();
 }
 
 function saveShip() {

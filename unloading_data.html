@@ -42,7 +42,56 @@
       align-items: center;
       gap: 8px;
     }
-    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .header-uploaded-wrap { position: relative; }
+    .header-uploaded-disclosure { position: relative; }
+    .header-uploaded-summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-radius: 5px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      user-select: none;
+    }
+    .header-uploaded-summary::-webkit-details-marker { display: none; }
+    .header-uploaded-chevron {
+      display: inline-block;
+      font-size: 9px;
+      opacity: 0.9;
+      transform: translateY(-0.5px);
+    }
+    .header-uploaded-disclosure[open] .header-uploaded-chevron { transform: rotate(90deg) translate(1px, 0); }
+    .header-uploaded-panel {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      width: min(240px, calc(100vw - 24px));
+      max-height: min(340px, 55vh);
+      overflow-y: auto;
+      background: #fff;
+      color: #374151;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 14px 44px rgba(0,0,0,0.28);
+      padding: 10px 12px 10px 10px;
+      font-size: 13px;
+      font-weight: 400;
+      z-index: 1100;
+      text-align: left;
+    }
+    .header-uploaded-ol {
+      margin: 0;
+      padding-left: 1.35em;
+      list-style-type: decimal;
+    }
+    .header-uploaded-ol li { margin: 5px 0; padding-left: 4px; }
     .header-title {
       font-size: 17px;
       font-weight: 700;
@@ -545,7 +594,6 @@
       cursor: pointer;
       font-weight: 700;
     }
-    .uploaded-files { color: #374151; font-size: 13px; }
     table { width: 100%; border-collapse: collapse; }
     th, td {
       border-bottom: 1px solid var(--line);
@@ -874,12 +922,19 @@
     </div>
     <div class="header-actions">
       <button id="open-upload-modal-btn" class="import-btn" type="button">Import</button>
+      <div class="header-uploaded-wrap">
+        <details id="uploaded-files-disclosure" class="header-uploaded-disclosure">
+          <summary class="header-uploaded-summary">
+            <span class="header-uploaded-chevron" aria-hidden="true">▸</span>
+            <span id="uploaded-files-summary">업로드 파일</span>
+          </summary>
+          <div id="uploaded-files-detail" class="header-uploaded-panel"></div>
+        </details>
+      </div>
     </div>
   </header>
 
   <main class="container">
-    <div id="uploaded-files" class="uploaded-files" style="margin-bottom:10px;"></div>
-
     <section class="panel filter-header">
       <div class="topbar">
         <div class="topbar-left">
@@ -981,14 +1036,14 @@
     </section>
     <section class="bottom-grid">
       <section class="panel table-panel">
-      <h3>브랜드 별 상세 현황</h3>
+      <h3>브랜드별 상세 현황</h3>
       <div class="brand-detail-grid">
         <div class="brand-chart-card">
           <div class="brand-chart-head">
             <h4 id="brand-rate-title">브랜드별 평균 하역률</h4>
             <span class="brand-chart-unit">ton/day</span>
           </div>
-          <div id="brand-rate-list" class="brand-rate-list"></div>
+          <div id="brand-rate-list" class="brand-rate-list"></div>ㅌ
         </div>
         <div class="brand-table-card">
           <table>
@@ -1522,11 +1577,20 @@
     }
 
     function renderUploadedFiles() {
-      const el = document.getElementById("uploaded-files");
-      if (!state.uploadedFiles.length) {
-        el.textContent = "업로드 파일: 없음 (기본 샘플 파일 사용)";
-      } else {
-        el.textContent = `업로드 파일: ${state.uploadedFiles.join(", ")}`;
+      const summaryEl = document.getElementById("uploaded-files-summary");
+      const detailEl = document.getElementById("uploaded-files-detail");
+      if (summaryEl && detailEl) {
+        summaryEl.textContent = "업로드 파일";
+        const n = state.uploadedFiles.length;
+        if (!n) {
+          detailEl.textContent =
+            "서버에 업로드된 파일이 없습니다. 기본 샘플 데이터를 사용 중입니다. Import로 파일을 추가할 수 있습니다.";
+        } else {
+          detailEl.innerHTML =
+            '<ol class="header-uploaded-ol">' +
+            state.uploadedFiles.map((name) => `<li>${escapeHtml(name)}</li>`).join("") +
+            "</ol>";
+        }
       }
 
       const modalBody = document.getElementById("modal-uploaded-tbody");

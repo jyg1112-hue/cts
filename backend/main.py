@@ -5,6 +5,7 @@ import math
 import os
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -26,6 +27,7 @@ SCHEDULE_HTML = BASE_DIR / "schedule.html"
 BANCHU_HTML = BASE_DIR / "banchu.html"
 YARD_HTML = BASE_DIR / "yard.html"
 UNLOADING_DATA_HTML = BASE_DIR / "unloading_data.html"
+MAINTENANCE_PLACEHOLDER_HTML = BASE_DIR / "maintenance_placeholder.html"
 PUBLIC_DIR = BASE_DIR / "public"
 DEBUG_LOG_PATH = BASE_DIR / "debug-34636b.log"
 UNLOADING_XLS_PATH = BASE_DIR / "backdata" / "(2025년) 7선석 하역률.xls"
@@ -47,6 +49,8 @@ NO_CACHE_HTML_PATHS = {
     "/unloading_data",
     "/unloading_data.html",
     "/unloading-data.html",
+    "/maintenance/equipment",
+    "/maintenance/history",
 }
 
 NICKEL_BRAND_MAP = {
@@ -60,11 +64,20 @@ NICKEL_BRAND_MAP = {
 ISSUE_CATEGORY_RULES = {
     "돌발정비": ["돌발정비", "고장", "파손", "정비", "소손"],
     "설비트러블": ["설비트러블", "트러블", "비상", "사행", "trip", "r/s", "r/d", "통신에러"],
-    "기상불량": ["기상", "우천", "한파", "강풍", "악천후", "폭우"],
+    "기상불량": ["기상", "우천", "한파", "강풍", "악천후", "폭우", "결빙", "동파"],
     "화물상태": ["화물상태", "수분", "점성", "괴광"],
     "작업대기": ["작업대기", "대기", "본선관련", "야드부족", "재고부족", "착수지연"],
     "운영변경": ["야드변경", "브랜드 변경", "이항양하", "선적", "연동"],
-    "품질/검출": ["철편검출", "검출", "슈트막힘", "청소", "목고작업"],
+    "품질/검출": [
+        "철편검출",
+        "검출",
+        "슈트막힘",
+        "청소",
+        "목고작업",
+        "미분탄",
+        "낙탄",
+        "분탄",
+    ],
 }
 ISSUE_CATEGORIES = list(ISSUE_CATEGORY_RULES.keys()) + ["기타"]
 UPLOAD_NAME_PATTERN = re.compile(r"^(?P<year>\d{4})_하역률\.(?P<ext>xls|xlsx)$", re.IGNORECASE)
@@ -162,6 +175,7 @@ def _classify_issue_tags(remark: str) -> list[str]:
     text = _normalize_text(remark)
     if not text:
         return []
+    text = unicodedata.normalize("NFKC", text)
     lower_text = text.lower()
     tags: list[str] = []
     for category, keywords in ISSUE_CATEGORY_RULES.items():
@@ -174,6 +188,7 @@ def _clean_issue_text(text: str) -> str:
     cleaned = _normalize_text(text)
     if not cleaned:
         return ""
+    cleaned = unicodedata.normalize("NFKC", cleaned)
     # 시간/시각성 표현 제거 (예: 14:30, 14시, 14시30분, 2025-01-10 08:00)
     cleaned = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", cleaned)
     cleaned = re.sub(r"\b\d{1,2}\s*시(?:\s*\d{1,2}\s*분)?\b", " ", cleaned)
@@ -225,8 +240,8 @@ def _extract_category_issue_examples(remark: str, category: str) -> list[str]:
             continue
         if any(tok in compact for tok in skip_tokens):
             continue
-        if len(compact) > 34:
-            compact = compact[:34].rstrip() + "…"
+        if len(compact) > 56:
+            compact = compact[:56].rstrip() + "…"
         key = compact.lower()
         if key in normalized_seen:
             continue
@@ -239,6 +254,7 @@ def _extract_remark_durations(remark: str) -> list[dict[str, Any]]:
     text = _normalize_text(remark)
     if not text:
         return []
+    text = unicodedata.normalize("NFKC", text)
 
     # 예: 기상불량(우천대기) : 2:10, 일상정비(2:57), 계획정비 ... (40:00)
     pattern = re.compile(r"(?P<label>[^()\n]{0,80}?)\(\s*(?P<hour>\d{1,3})\s*:\s*(?P<minute>\d{1,2})\s*\)")
@@ -283,21 +299,14 @@ def _parse_float(value: Any) -> Optional[float]:
         return None
 
 
-def _safe_month(value: Any) -> Optional[int]:
-    numeric = _parse_float(value)
-    if numeric is None:
-        return None
-    month = int(numeric)
-    if 1 <= month <= 12:
-        return month
-    return None
-
-
-def _safe_year(start_dt: Any) -> Optional[int]:
-    if pd.isna(start_dt):
-        return None
-    if hasattr(start_dt, "year"):
-        return int(start_dt.year)
+def _reference_datetime_for_unloading_row(row: Any) -> Optional[pd.Timestamp]:
+    """실적·이슈 집계 기준 시각. 완료 시점 우선, 없으면 착수(미기재·타 년도 파일 호환)."""
+    end_dt = pd.to_datetime(row.get("완료"), errors="coerce")
+    if pd.notna(end_dt):
+        return pd.Timestamp(end_dt)
+    start_dt = pd.to_datetime(row.get("착수"), errors="coerce")
+    if pd.notna(start_dt):
+        return pd.Timestamp(start_dt)
     return None
 
 
@@ -312,11 +321,11 @@ def _parse_unloading_sheet(cargo_type: str, sheet_name: str, source_path: Path) 
         if not vessel_name or not raw_brand or rate is None:
             continue
 
-        month = _safe_month(row.get("월"))
-        start_dt = pd.to_datetime(row.get("착수"), errors="coerce")
-        year = _safe_year(start_dt)
-        if year is None:
+        ref_dt = _reference_datetime_for_unloading_row(row)
+        if ref_dt is None:
             continue
+        year = int(ref_dt.year)
+        month = int(ref_dt.month)
 
         if cargo_type == "coal":
             volume = _parse_float(row.get("하역량(톤)"))
@@ -328,13 +337,15 @@ def _parse_unloading_sheet(cargo_type: str, sheet_name: str, source_path: Path) 
             continue
 
         remark = _normalize_text(row.get("비고"))
+        if remark:
+            remark = unicodedata.normalize("NFKC", remark)
         issue_tags = _classify_issue_tags(remark)
         remark_durations = _extract_remark_durations(remark)
         rows.append(
             {
                 "cargo_type": cargo_type,
                 "year": year,
-                "month": month or int(start_dt.month),
+                "month": month,
                 "vessel_name": vessel_name,
                 "brand": brand,
                 "volume_ton": volume,
@@ -1127,11 +1138,20 @@ def _build_rule_based_chat_answer(
         return False
 
     def infer_requested_issue_category(text: str) -> Optional[str]:
+        """질문에 특정 이슈 유형이 하나만 드러날 때만 카테고리를 좁힌다. 비고 전문을 붙여 넣어
+        여러 유형(기상+품질 등)이 동시에 매칭되면 None을 반환해 요약에 모두 노출한다."""
+        folded = unicodedata.normalize("NFKC", _normalize_text(text)).lower()
+        matched: list[str] = []
+        seen: set[str] = set()
         for category, keywords in ISSUE_CATEGORY_RULES.items():
-            if category.lower() in text:
-                return category
-            if any(k.lower() in text for k in keywords):
-                return category
+            hit = category.lower() in folded
+            if not hit:
+                hit = any(unicodedata.normalize("NFKC", k).lower() in folded for k in keywords)
+            if hit and category not in seen:
+                matched.append(category)
+                seen.add(category)
+        if len(matched) == 1:
+            return matched[0]
         return None
 
     def summarize_issue_details(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1160,11 +1180,26 @@ def _build_rule_based_chat_answer(
                         bucket[tag]["details"].append(detail_text)
             else:
                 tags = row.get("issue_tags") or ["기타"]
+                remark = str(row.get("remark") or "")
                 for tag in tags:
                     resolved = tag or "기타"
                     if resolved not in bucket:
                         bucket[resolved] = {"minutes": 0, "count": 0, "details": [], "seen": set()}
                     bucket[resolved]["count"] += 1
+                    examples = _extract_category_issue_examples(remark, resolved)
+                    for ex in examples:
+                        key = ex.lower()
+                        if key not in bucket[resolved]["seen"]:
+                            bucket[resolved]["seen"].add(key)
+                            bucket[resolved]["details"].append(ex)
+                    if remark and not examples:
+                        fallback = _clean_issue_text(remark)
+                        if len(fallback) >= 4:
+                            fb_key = fallback.lower()
+                            if fb_key not in bucket[resolved]["seen"]:
+                                bucket[resolved]["seen"].add(fb_key)
+                                label = fallback if len(fallback) <= 80 else fallback[:80].rstrip() + "…"
+                                bucket[resolved]["details"].append(label)
 
         rows_out = [
             {
@@ -1203,9 +1238,9 @@ def _build_rule_based_chat_answer(
             return "\n".join(lines)
 
         lines = [f"{scope_label} 주요 이슈 상세입니다."]
-        for row in issue_rows[:3]:
+        for row in issue_rows[:5]:
             lines.append(f"{row['category']} 총 {to_hhmm(int(row['total_minutes']))} ({int(row['count'])}건)")
-            for d in row.get("details", [])[:2]:
+            for d in row.get("details", [])[:3]:
                 lines.append(f"- {d}")
         return "\n".join(lines)
     if any(t in q for t in ("이슈", "장애", "트러블", "건수")):
@@ -1483,3 +1518,17 @@ def serve_unloading_data() -> FileResponse:
     if not UNLOADING_DATA_HTML.exists():
         raise HTTPException(status_code=404, detail="unloading_data.html not found")
     return FileResponse(UNLOADING_DATA_HTML)
+
+
+@app.get("/maintenance/equipment")
+def serve_maintenance_equipment() -> FileResponse:
+    if not MAINTENANCE_PLACEHOLDER_HTML.exists():
+        raise HTTPException(status_code=404, detail="maintenance_placeholder.html not found")
+    return FileResponse(MAINTENANCE_PLACEHOLDER_HTML)
+
+
+@app.get("/maintenance/history")
+def serve_maintenance_history() -> FileResponse:
+    if not MAINTENANCE_PLACEHOLDER_HTML.exists():
+        raise HTTPException(status_code=404, detail="maintenance_placeholder.html not found")
+    return FileResponse(MAINTENANCE_PLACEHOLDER_HTML)

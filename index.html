@@ -4,75 +4,476 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>선석 운영 플랫폼</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --page-bg: #f5f6f8;
+      --surface: #ffffff;
+      --border: #e4e7ed;
+      --text: #1a2236;
+      --text-muted: #6b7a99;
+      --text-faint: #a8b3c8;
+      --ops: #2563eb;
+      --ops-bg: #eef3fd;
+      --ops-border: #c7d9fb;
+      --mx: #059669;
+      --mx-bg: #ecfaf5;
+      --mx-border: #a7e3cf;
+      --ok: #059669;
+      --warn: #d97706;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: "Malgun Gothic", sans-serif;
-      background: #f3f4f6;
-      color: #1f2937;
+      font-family: "Noto Sans KR", sans-serif;
+      background: var(--page-bg);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
-      align-items: flex-start;
-      justify-content: flex-start;
-      padding: 24px;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
     }
-    .wrap { width: 100%; max-width: 1080px; }
-    .title {
-      font-size: 28px;
-      font-weight: 800;
-      margin-bottom: 18px;
-      color: #1a3a5c;
+    .font-mono { font-family: "DM Mono", ui-monospace, monospace; }
+
+    @keyframes card-enter {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
+    @keyframes live-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.92); }
     }
-    .menu-card {
-      display: block;
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 18px 16px;
+    .animate-card {
+      animation: card-enter 0.35s ease forwards;
+      opacity: 0;
+    }
+    .live-dot { animation: live-pulse 2.4s ease-in-out infinite; }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: 60px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-header__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
       text-decoration: none;
       color: inherit;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      transition: transform .12s ease, box-shadow .12s ease;
     }
-    .menu-card:hover {
+    .brand__title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .brand__rule { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+    .brand__sub {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      .brand__rule, .brand__sub { display: none; }
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .sys-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--page-bg);
+    }
+    .sys-badge__dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+    .sys-badge__text {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .clock {
+      font-family: "DM Mono", monospace;
+      font-size: 12px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .main-inner {
+      flex: 1;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px 48px;
+    }
+    .greeting {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+      max-width: 720px;
+      margin-bottom: 40px;
+    }
+    .section { margin-bottom: 48px; }
+    .section:last-of-type { margin-bottom: 0; }
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-head h2 {
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .section-head__line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      min-width: 0;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 900px) {
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 22px 22px 18px;
+      padding-top: 20px;
+      border-top-width: 2px;
+      text-decoration: none;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .card--ops { border-top-color: var(--ops); }
+    .card--mx { border-top-color: var(--mx); }
+    .card--link:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
     }
-    .card-emoji { font-size: 24px; margin-bottom: 8px; }
-    .card-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-    .card-sub { font-size: 12px; color: #6b7280; }
+    .card--ops.card--link:hover {
+      box-shadow: 0 10px 28px -8px rgba(37, 99, 235, 0.22);
+    }
+    .card--mx.card--link:hover {
+      box-shadow: 0 10px 28px -8px rgba(5, 150, 105, 0.22);
+    }
+    .card--link:focus-visible {
+      outline: 2px solid var(--ops);
+      outline-offset: 2px;
+    }
+    .card--disabled {
+      cursor: default;
+      opacity: 0.9;
+    }
+    .card__icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .card__icon--ops {
+      background: var(--ops-bg);
+      border: 1px solid var(--ops-border);
+    }
+    .card__icon--mx {
+      background: var(--mx-bg);
+      border: 1px solid var(--mx-border);
+    }
+    .card__title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .card__desc {
+      font-size: 12px;
+      font-weight: 300;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 16px;
+      flex: 1;
+    }
+    .card__rule { height: 1px; background: var(--border); margin-bottom: 12px; }
+    .card__foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: auto;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .badge__dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .badge__dot--ok { background: var(--ok); }
+    .badge__dot--warn { background: var(--warn); }
+    .badge__dot--idle { background: var(--text-faint); }
+    .badge--dashed {
+      border: 1px dashed var(--text-faint);
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+    .card__arrow {
+      font-family: "DM Mono", monospace;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .card--disabled .card__arrow { color: var(--text-faint); }
+
+    .slot-empty {
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+      background: transparent;
+      min-height: 188px;
+    }
+
+    .site-footer {
+      margin-top: auto;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    .site-footer__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .site-footer__copy {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .site-footer__meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .ver-badge {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--page-bg);
+    }
+    .sync-time {
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <h1 class="title">⚓ 선석 운영 플랫폼</h1>
-    <section class="grid">
-      <a href="/schedule" class="menu-card">
-        <div class="card-emoji">📅</div>
-        <div class="card-title">7선석 하역 스케줄</div>
-        <div class="card-sub">기준일 기반 스케줄 관리</div>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="/">
+        <span class="brand__title">선석 운영 플랫폼</span>
+        <span class="brand__rule" aria-hidden="true"></span>
+        <span class="brand__sub">BERTH OPERATIONS</span>
       </a>
-      <a href="/banchu" class="menu-card">
-        <div class="card-emoji">🚢</div>
-        <div class="card-title">반출 스케줄</div>
-        <div class="card-sub">CW1/CW2/Silo 반출 계획</div>
-      </a>
-      <a href="/unloading_data" class="menu-card">
-        <div class="card-emoji">📊</div>
-        <div class="card-title">하역 데이터</div>
-        <div class="card-sub">실적 데이터 조회</div>
-      </a>
-      <a href="/yard" class="menu-card">
-        <div class="card-emoji">🏗️</div>
-        <div class="card-title">야드 현황/시뮬레이션</div>
-        <div class="card-sub">반입/반출 기반 야드 상태</div>
-      </a>
+      <div class="header-right">
+        <div class="sys-badge">
+          <span class="sys-badge__dot live-dot" aria-hidden="true"></span>
+          <span class="sys-badge__text">시스템 정상</span>
+        </div>
+        <time class="clock" id="live-clock" datetime=""></time>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-inner">
+    <h1 class="greeting">안녕하세요, 오늘도 안전한 하역 운영을 시작하세요.</h1>
+
+    <section class="section" aria-labelledby="sec-ops">
+      <div class="section-head">
+        <h2 id="sec-ops">운영 관리</h2>
+        <div class="section-head__line" aria-hidden="true"></div>
+      </div>
+      <div class="grid-4">
+        <a class="card card--ops card--link animate-card" href="/schedule" style="animation-delay:0s">
+          <span class="card__icon card__icon--ops" aria-hidden="true">📅</span>
+          <span class="card__title">7선석 하역 스케줄</span>
+          <span class="card__desc">기준일 기반 선석별 스케줄 조회 및 관리</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge"><span class="badge__dot badge__dot--ok" aria-hidden="true"></span>운영중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </a>
+        <a class="card card--ops card--link animate-card" href="/banchu" style="animation-delay:0.04s">
+          <span class="card__icon card__icon--ops" aria-hidden="true">🚢</span>
+          <span class="card__title">반출 스케줄</span>
+          <span class="card__desc">CW1 / CW2 / Silo 반출 계획 수립</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge"><span class="badge__dot badge__dot--ok" aria-hidden="true"></span>운영중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </a>
+        <a class="card card--ops card--link animate-card" href="/unloading_data" style="animation-delay:0.08s">
+          <span class="card__icon card__icon--ops" aria-hidden="true">📊</span>
+          <span class="card__title">하역 데이터</span>
+          <span class="card__desc">하역 실적 데이터 조회 및 분석</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge"><span class="badge__dot badge__dot--ok" aria-hidden="true"></span>운영중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </a>
+        <a class="card card--ops card--link animate-card" href="/yard" style="animation-delay:0.12s">
+          <span class="card__icon card__icon--ops" aria-hidden="true">🏗️</span>
+          <span class="card__title">야드 현황 / 시뮬레이션</span>
+          <span class="card__desc">반입·반출 기반 야드 상태 시뮬레이션</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge"><span class="badge__dot badge__dot--warn" aria-hidden="true"></span>업데이트 중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="sec-mx">
+      <div class="section-head">
+        <h2 id="sec-mx">정비 관리</h2>
+        <div class="section-head__line" aria-hidden="true"></div>
+      </div>
+      <div class="grid-4">
+        <div class="card card--mx card--disabled animate-card" style="animation-delay:0.16s">
+          <span class="card__icon card__icon--mx" aria-hidden="true">🔧</span>
+          <span class="card__title">장비 현황</span>
+          <span class="card__desc">선석별 장비 가동 현황 및 상태 모니터링</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge badge--dashed"><span class="badge__dot badge__dot--idle" aria-hidden="true"></span>준비 중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </div>
+        <div class="card card--mx card--disabled animate-card" style="animation-delay:0.2s">
+          <span class="card__icon card__icon--mx" aria-hidden="true">📋</span>
+          <span class="card__title">정비 이력</span>
+          <span class="card__desc">장비별 정비 기록 조회 및 이력 관리</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge badge--dashed"><span class="badge__dot badge__dot--idle" aria-hidden="true"></span>준비 중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </div>
+        <div class="card card--mx card--disabled animate-card" style="animation-delay:0.24s">
+          <span class="card__icon card__icon--mx" aria-hidden="true">🗓️</span>
+          <span class="card__title">정비 계획</span>
+          <span class="card__desc">정비 일정 수립 및 알림 (준비 중)</span>
+          <span class="card__rule" aria-hidden="true"></span>
+          <span class="card__foot">
+            <span class="badge badge--dashed"><span class="badge__dot badge__dot--idle" aria-hidden="true"></span>준비 중</span>
+            <span class="card__arrow" aria-hidden="true">↗</span>
+          </span>
+        </div>
+        <div class="slot-empty animate-card" style="animation-delay:0.28s" aria-hidden="true"></div>
+      </div>
     </section>
   </main>
+
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <p class="site-footer__copy">© <span id="y"></span> Berth Operations. All rights reserved.</p>
+      <div class="site-footer__meta">
+        <span class="ver-badge">v1.0.0</span>
+        <span class="sync-time">마지막 동기화 <span id="sync-at"></span></span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var clockEl = document.getElementById("live-clock");
+      var weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+      function formatDateTime(d) {
+        var y = d.getFullYear();
+        var mo = d.getMonth() + 1;
+        var day = d.getDate();
+        var w = weekdays[d.getDay()];
+        var h = String(d.getHours()).padStart(2, "0");
+        var mi = String(d.getMinutes()).padStart(2, "0");
+        var s = String(d.getSeconds()).padStart(2, "0");
+        return y + "." + mo + "." + day + "(" + w + ") " + h + ":" + mi + ":" + s;
+      }
+      function tick() {
+        var d = new Date();
+        clockEl.textContent = formatDateTime(d);
+        clockEl.setAttribute("datetime", d.toISOString());
+      }
+      tick();
+      setInterval(tick, 1000);
+
+      var syncEl = document.getElementById("sync-at");
+      var sync = new Date();
+      syncEl.textContent = sync.toLocaleString("ko-KR", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+      });
+      document.getElementById("y").textContent = String(new Date().getFullYear());
+    })();
+  </script>
 </body>
 </html>

@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(cmd.exe /c start \"\" \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")",
-      "Bash(cmd.exe /c explorer \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")"
+      "Bash(cmd.exe /c explorer \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")",
+      "Bash(python3 -c \"import pptx; print\\('ok'\\)\")",
+      "Bash(pip3 show:*)",
+      "Bash(git add:*)"
     ]
   }
 }
