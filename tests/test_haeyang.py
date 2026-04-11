@@ -114,3 +114,4 @@ def test_router_classify_rag_issue(monkeypatch):
     )
     out = _classify({"query": "수분이 높은 화물로 인한 문제"})
     assert out["query_type"] == "rag"
+    assert out["metadata_filter"] == {}

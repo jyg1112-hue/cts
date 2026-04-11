@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""LangGraph 기반 쿼리 라우터.
+
+사용자 질문을 SQL / RAG / Hybrid 세 경로로 분류하고,
+각 경로에 맞는 체인을 실행해 최종 답변을 반환한다.
+
+주요 진입점: build_router_graph(db_path, retriever, reranker)
+"""
+
 from typing import Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
