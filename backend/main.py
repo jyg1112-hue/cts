@@ -1103,8 +1103,8 @@ def _build_rule_based_chat_answer(
     scope_label = (" ".join(scope_parts) + " 기준") if scope_parts else "업로드된 전체 데이터 기준"
 
     def asks_average_rate(text: str) -> bool:
-        # 원인·이유·분석·순위 맥락은 평균 조회가 아님
-        if any(kw in text for kw in ("원인", "이유", "왜", "분석", "때문")):
+        # 원인·이유·분석·이슈사항·순위 맥락은 평균 조회가 아님
+        if any(kw in text for kw in ("원인", "이유", "왜", "분석", "때문", "이슈사항", "이슈 사항", "이슈내용", "이슈 내용")):
             return False
         if any(t in text for t in ("평균 하역률", "평균하역률", "평균 t/d", "평균 td")):
             return True
@@ -1244,20 +1244,7 @@ def _build_rule_based_chat_answer(
         rows_out.sort(key=lambda x: (x["total_minutes"], x["count"]), reverse=True)
         return rows_out
 
-    # 원인·이유·분석 질문은 규칙 기반으로 답할 수 없으므로 enhanced_chat_answer에 위임
-    CAUSE_KEYWORDS = ("원인", "이유", "왜", "때문에", "어떤 문제", "무슨 문제")
-    if any(kw in q for kw in CAUSE_KEYWORDS):
-        return None
-
-    if asks_average_rate(q):
-        v = int(round(float(k.get("avg_unloading_rate", 0) or 0)))
-        return f"{scope_label} 평균 하역률은 {v:,} t/d 입니다."
-    if asks_total_volume(q):
-        v = int(round(float(k.get("total_volume_ton", 0) or 0)))
-        return f"{scope_label} 총 하역량은 {v:,} t 입니다."
-    if any(t in q for t in ("총 척수", "척수", "선박 수", "vessel")):
-        v = int(round(float(k.get("total_vessels", 0) or 0)))
-        return f"{scope_label} 총 척수는 {v:,} 척 입니다."
+    # 이슈사항 상세 조회는 평균 하역률 조회보다 먼저 처리 (우선순위 충돌 방지)
     if asks_issue_details(q):
         issue_rows = summarize_issue_details(scoped)
         requested_category = infer_requested_issue_category(q)
@@ -1278,6 +1265,52 @@ def _build_rule_based_chat_answer(
             for d in row.get("details", [])[:3]:
                 lines.append(f"- {d}")
         return "\n".join(lines)
+
+    # 최저/최고 하역률 + 원인 질의: 규칙 기반으로 선박 특정 후 이슈 반환
+    CAUSE_KEYWORDS = ("원인", "이유", "왜", "때문에", "어떤 문제", "무슨 문제")
+    RANKING_CAUSE_SIGNALS = ("가장", "제일", "최고", "최저")
+    LOW_SIGNALS = ("낮", "최저", "최소")
+
+    has_cause = any(kw in q for kw in CAUSE_KEYWORDS)
+    has_ranking = any(rs in q for rs in RANKING_CAUSE_SIGNALS) and "하역률" in q
+
+    if has_cause and has_ranking:
+        has_low = any(ls in q for ls in LOW_SIGNALS)
+        if scoped:
+            if has_low:
+                best = min(scoped, key=lambda r: float(r.get("unloading_rate") or float("inf")))
+            else:
+                best = max(scoped, key=lambda r: float(r.get("unloading_rate") or 0.0))
+            vessel = best.get("vessel_name") or "미확인"
+            rate = int(round(float(best.get("unloading_rate") or 0)))
+            year_v = best.get("year")
+            month_v = best.get("month")
+            remark = str(best.get("remark") or "")
+            issues = best.get("issue_tags") or []
+            direction = "낮았던" if has_low else "높았던"
+            period = f"{year_v}년 {month_v}월" if year_v and month_v else ""
+            period_str = f"({period}, " if period else "("
+            lines = [f"{scope_label} 하역률이 가장 {direction} 선박은 {vessel}{period_str}{rate:,} t/d)입니다."]
+            if issues:
+                lines.append(f"주요 이슈: {', '.join(issues)}")
+            if remark:
+                clean = remark.strip()
+                if clean:
+                    lines.append(f"비고: {clean[:300]}")
+            return "\n".join(lines)
+    elif has_cause:
+        # 순수 원인 질의는 규칙 기반으로 답할 수 없으므로 enhanced_chat_answer에 위임
+        return None
+
+    if asks_average_rate(q):
+        v = int(round(float(k.get("avg_unloading_rate", 0) or 0)))
+        return f"{scope_label} 평균 하역률은 {v:,} t/d 입니다."
+    if asks_total_volume(q):
+        v = int(round(float(k.get("total_volume_ton", 0) or 0)))
+        return f"{scope_label} 총 하역량은 {v:,} t 입니다."
+    if any(t in q for t in ("총 척수", "척수", "선박 수", "vessel")):
+        v = int(round(float(k.get("total_vessels", 0) or 0)))
+        return f"{scope_label} 총 척수는 {v:,} 척 입니다."
     if any(t in q for t in ("이슈", "장애", "트러블", "건수")):
         v = int(round(float(k.get("issue_count", 0) or 0)))
         return f"{scope_label} 이슈 건수는 {v:,} 건 입니다."
