@@ -115,3 +115,25 @@ def test_router_classify_rag_issue(monkeypatch):
     out = _classify({"query": "수분이 높은 화물로 인한 문제"})
     assert out["query_type"] == "rag"
     assert out["metadata_filter"] == {}
+
+
+def test_rag_chain_passes_context(monkeypatch):
+    from langchain_core.documents import Document
+    from haeyang.rag_chain import run_rag_chain
+
+    captured = {}
+
+    def fake_completion(system_prompt, user_prompt, model=None):
+        captured["user_prompt"] = user_prompt
+        return "테스트 답변"
+
+    monkeypatch.setattr("haeyang.rag_chain.chat_text_completion", fake_completion)
+
+    docs = [
+        Document(page_content="선박명: TEST-A\n[이슈 및 비고]\n돌발정비(6:04)", metadata={}),
+    ]
+    result = run_rag_chain("CSU2호 feeder 관련 이슈", docs)
+
+    assert result == "테스트 답변"
+    assert "TEST-A" in captured["user_prompt"]
+    assert "돌발정비" in captured["user_prompt"]
