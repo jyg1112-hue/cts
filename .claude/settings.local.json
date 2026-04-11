@@ -5,7 +5,16 @@
       "Bash(cmd.exe /c explorer \"c:\\\\Users\\\\joyg1\\\\OneDrive\\\\바탕 화면\\\\0327_2\\\\schedule.html\")",
       "Bash(python3 -c \"import pptx; print\\('ok'\\)\")",
       "Bash(pip3 show:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git commit -m 'docs: 하역 챗봇 검색 강화 설계 문서 추가:*)",
+      "Bash(.venv/bin/python -m pytest tests/test_haeyang.py::test_parse_issues_per_line -v)",
+      "Bash(.venv/bin/python -m pytest tests/test_haeyang.py -v)",
+      "Bash(python -m pytest tests/test_haeyang.py::test_parse_issues_per_line tests/test_haeyang.py::test_parse_time_from_text tests/test_haeyang.py::test_rows_to_dataframes_smoke -v)",
+      "Bash(python -m pytest tests/test_haeyang.py -v)"
     ]
   }
 }

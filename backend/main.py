@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import re
+import sys
 import time
 import unicodedata
 import urllib.error
@@ -19,6 +21,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+_SRC = BASE_DIR / "src"
+if _SRC.is_dir() and str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 load_dotenv(BASE_DIR / ".env")
 
 from backend.supply_news import get_supply_news_payload
@@ -377,6 +382,21 @@ def _get_unloading_dataset() -> list[dict[str, Any]]:
         except Exception:
             pass
     return all_rows
+
+
+def _haeyang_source_fingerprint() -> str:
+    """업로드/기본 엑셀 파일 변경 시 하역 챗봇 인덱스를 다시 빌드하기 위한 지문."""
+    files = _uploaded_excel_files()
+    if not files:
+        files = [UNLOADING_XLS_PATH] if UNLOADING_XLS_PATH.exists() else []
+    parts: list[str] = []
+    for p in files:
+        try:
+            st = p.stat()
+            parts.append(f"{p.name}:{st.st_mtime_ns}:{st.st_size}")
+        except OSError:
+            parts.append(str(p))
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
 def _filter_rows(
@@ -1083,7 +1103,17 @@ def _build_rule_based_chat_answer(
     scope_label = (" ".join(scope_parts) + " 기준") if scope_parts else "업로드된 전체 데이터 기준"
 
     def asks_average_rate(text: str) -> bool:
-        return any(t in text for t in ("평균 하역률", "평균하역률", "하역률", "평균 t/d", "평균 td"))
+        # 원인·이유·분석·순위 맥락은 평균 조회가 아님
+        if any(kw in text for kw in ("원인", "이유", "왜", "분석", "때문")):
+            return False
+        if any(t in text for t in ("평균 하역률", "평균하역률", "평균 t/d", "평균 td")):
+            return True
+        if "하역률" in text:
+            ranking_signals = ("가장", "제일", "최고", "최저", "낮", "높", "순위", "랭킹", "상위", "하위")
+            if any(s in text for s in ranking_signals):
+                return False
+            return True
+        return False
 
     def asks_total_volume(text: str) -> bool:
         # 구어체/동사형 질의 포함: "반입했어", "얼마나 들어왔", "몇 톤"
@@ -1213,6 +1243,11 @@ def _build_rule_based_chat_answer(
         ]
         rows_out.sort(key=lambda x: (x["total_minutes"], x["count"]), reverse=True)
         return rows_out
+
+    # 원인·이유·분석 질문은 규칙 기반으로 답할 수 없으므로 enhanced_chat_answer에 위임
+    CAUSE_KEYWORDS = ("원인", "이유", "왜", "때문에", "어떤 문제", "무슨 문제")
+    if any(kw in q for kw in CAUSE_KEYWORDS):
+        return None
 
     if asks_average_rate(q):
         v = int(round(float(k.get("avg_unloading_rate", 0) or 0)))
@@ -1455,6 +1490,17 @@ async def unloading_data_chat(request: Request) -> JSONResponse:
     rule_based_answer = _build_rule_based_chat_answer(question, rows, history=history, parsed_filters=merged_query)
     if rule_based_answer:
         return JSONResponse({"answer": _format_numbers_with_commas(rule_based_answer), "summary": {}})
+
+    try:
+        from haeyang.chatbot import enhanced_chat_answer
+
+        fp = _haeyang_source_fingerprint()
+        enhanced = enhanced_chat_answer(question, history, BASE_DIR, rows, fp)
+        if enhanced:
+            summary = _aggregate_summary(rows)
+            return JSONResponse({"answer": _format_numbers_with_commas(enhanced), "summary": summary})
+    except Exception:
+        pass
 
     summary = _aggregate_summary(rows)
     dynamic_summary = _compute_dynamic_chat_summary(rows, merged_query)
