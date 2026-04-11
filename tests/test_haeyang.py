@@ -96,3 +96,21 @@ def test_parse_issues_slash_keyword():
     cats = {i["category"]: i["duration_hours"] for i in issues}
     assert "돌발정비" in cats
     assert abs(cats["돌발정비"] - 2.0) < 0.01
+
+
+def test_router_classify_rag_issue(monkeypatch):
+    from haeyang.router import _classify
+
+    monkeypatch.setattr(
+        "haeyang.router.chat_json_completion",
+        lambda *a, **k: {
+            "query_type": "rag",
+            "month": None,
+            "year": None,
+            "ship_name": None,
+            "cargo_type": None,
+            "품종": None,
+        },
+    )
+    out = _classify({"query": "수분이 높은 화물로 인한 문제"})
+    assert out["query_type"] == "rag"
