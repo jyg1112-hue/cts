@@ -85,3 +85,14 @@ def test_parse_issues_per_line():
     # 줄별로 다른 시간이 추출되어야 한다
     assert abs(cats["돌발정비"] - (6 + 4 / 60)) < 0.01
     assert abs(cats["SNNC설비트러블"] - 1.5) < 0.01
+
+
+def test_parse_issues_slash_keyword():
+    from haeyang.preprocess import parse_issues
+
+    # "돌발/일상 정비" 키워드가 슬래시 분리자에 의해 파괴되지 않아야 한다
+    raw = "돌발/일상 정비(2:00)"
+    issues = parse_issues(raw)
+    cats = {i["category"]: i["duration_hours"] for i in issues}
+    assert "돌발정비" in cats
+    assert abs(cats["돌발정비"] - 2.0) < 0.01

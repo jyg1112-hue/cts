@@ -52,6 +52,8 @@ def parse_issues(raw_remark: str) -> list[dict[str, Any]]:
     if not raw_remark:
         return []
     text = unicodedata.normalize("NFKC", raw_remark)
+    # 슬래시 포함 키워드를 분리 전에 정규화한다
+    text = text.replace("돌발/일상 정비", "돌발정비")
     # 줄 구분: 줄바꿈 또는 '/'로 분리 (단, 시간 표기 내부 '/'는 제외)
     lines = re.split(r"\n|(?<!\d)/(?!\d)", text)
 
