@@ -493,6 +493,81 @@ function refresh() {
   renderHeader();
   renderTable(rows);
   renderHeaderSummary(rows);
+  if (stockChart && !document.getElementById('chartWrap').hidden) {
+    updateChart(rows);
+  }
+}
+
+// ─────────────────────────────────────────
+//  CHART
+// ─────────────────────────────────────────
+let stockChart = null;
+
+function toggleChart() {
+  const wrap = document.getElementById('chartWrap');
+  const btn  = document.getElementById('btnChart');
+  const hidden = wrap.hidden;
+  wrap.hidden = !hidden;
+  btn.textContent = hidden ? '📈 차트 닫기' : '📈 차트 보기';
+  if (hidden) {
+    const rows = runCalc();
+    if (!stockChart) {
+      initChart(rows);
+    } else {
+      updateChart(rows);
+    }
+  }
+}
+
+function initChart(rows) {
+  const labels = rows.map(r => {
+    const parts = r.date.split('-');
+    return `${Number(parts[1])}/${Number(parts[2])}`;
+  });
+  const data = rows.map(r => r.totalStock);
+
+  stockChart = new Chart(document.getElementById('stockChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '총재고(t)',
+        data,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.08)',
+        fill: true,
+        tension: 0.3,
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 10 }, maxTicksLimit: 15 }
+        },
+        y: {
+          ticks: {
+            font: { size: 10 },
+            callback: v => Math.round(v / 10000) + '만t'
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(rows) {
+  if (!stockChart) return;
+  stockChart.data.datasets[0].data = rows.map(r => r.totalStock);
+  stockChart.update('none');
 }
 
 // ─────────────────────────────────────────
