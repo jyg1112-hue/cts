@@ -6,357 +6,668 @@
 <title>야드 시뮬레이션</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'Malgun Gothic', sans-serif;
-  background: #f3f4f6;
-  color: #111827;
-  min-height: 100vh;
-}
+body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #111827; min-height: 100vh; }
+
+/* ── HEADER ── */
 .app-header {
-  background: #1a3a5c;
-  color: #fff;
-  padding: 14px 18px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  background: #1a3a5c; color: #fff;
+  padding: 12px 18px;
+  display: flex; justify-content: space-between; align-items: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  flex-wrap: wrap; gap: 8px;
 }
-.app-header h1 { font-size: 18px; }
-.header-left { display: flex; gap: 10px; align-items: center; }
-.header-right { display: flex; gap: 8px; align-items: center; }
-.btn {
-  border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+.header-left  { display: flex; gap: 10px; align-items: center; }
+.header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.app-header h1 { font-size: 17px; }
+.header-summary { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.header-summary .hs { font-size: 12px; }
+.header-summary .hs strong { font-size: 13px; }
+.header-meta { font-size: 11px; color: #93c5fd; }
+
+/* ── BUTTONS ── */
+.btn { border: none; border-radius: 6px; padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity .15s; font-family: inherit; }
+.btn:hover { opacity: .85; }
+.btn-blue  { background: #2563eb; color: #fff; }
+.btn-gray  { background: #6b7280; color: #fff; }
+.btn-red   { background: #ef4444; color: #fff; }
+
+/* ── MAIN WRAPPER ── */
+.main-wrap { padding: 14px 16px; }
+
+/* ── TABLE CARD ── */
+.card { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,.08); border: 1px solid #e5e7eb; overflow: hidden; }
+.scroll-x { overflow-x: auto; }
+
+/* ── SIMULATION TABLE ── */
+.sim-table { border-collapse: collapse; font-size: 12px; min-width: 960px; width: 100%; }
+.sim-table th, .sim-table td {
+  border: 1px solid #e5e7eb; padding: 6px 8px;
+  text-align: right; white-space: nowrap;
 }
-.btn-blue { background: #2563eb; color: #fff; }
-.btn-gray { background: #6b7280; color: #fff; }
-.container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 16px;
-  display: grid;
-  grid-template-columns: 350px 1fr;
-  gap: 14px;
+.sim-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; z-index: 2; }
+.sim-table td:first-child, .sim-table th:first-child { text-align: left; }
+
+/* 그룹 헤더 */
+.sim-table .gh-self  { background: #1e4a7a; color: #fff; text-align: center; }
+.sim-table .gh-rent  { background: #14532d; color: #fff; text-align: center; }
+.sim-table .gh-total { background: #312e81; color: #fff; text-align: center; }
+.sim-table .gh-date  { background: #1a3a5c; color: #fff; }
+
+/* 수동 편집 셀 */
+.sim-table td.manual-edited { outline: 2px solid #3b82f6; outline-offset: -2px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 1000;
+  align-items: center; justify-content: center;
 }
-.card {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(15,23,42,0.08);
-  border: 1px solid #e5e7eb;
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff; border-radius: 10px; padding: 22px;
+  width: 580px; max-width: 96vw; max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
 }
-.panel {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.panel h2 {
-  font-size: 14px;
-  color: #1a3a5c;
-}
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 12px; color: #374151; font-weight: 700; }
-.field input, .field select {
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 9px;
-  font-size: 13px;
-}
-.hint {
-  font-size: 11px;
-  color: #6b7280;
-  line-height: 1.5;
-}
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  padding: 12px;
-}
-.stat {
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px;
-}
-.stat .k { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
-.stat .v { font-size: 18px; font-weight: 700; color: #1f2937; }
-.content { padding: 12px; }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-thead th {
-  background: #f1f5f9;
-  color: #334155;
-  font-weight: 700;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-th, td {
-  border: 1px solid #e5e7eb;
-  padding: 7px 8px;
-  text-align: right;
-  white-space: nowrap;
-}
-th:first-child, td:first-child { text-align: left; }
-tbody tr:nth-child(even) { background: #fcfcfd; }
-.over td { background: #fef2f2; }
-.warn td { background: #fffbeb; }
-.badge {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.badge.ok { background: #dcfce7; color: #166534; }
-.badge.warn { background: #fef3c7; color: #92400e; }
-.badge.over { background: #fee2e2; color: #991b1b; }
-.scroll { max-height: 68vh; overflow: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
-@media (max-width: 1040px) {
-  .container { grid-template-columns: 1fr; }
-  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
+.modal h2 { font-size: 15px; font-weight: 700; color: #1a3a5c; margin-bottom: 16px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* ── SETTINGS MODAL ── */
+.yard-block { border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+.yard-block.self { background: #eff6ff; border: 1px solid #bfdbfe; }
+.yard-block.rent { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.yard-block.silo { background: #fafafa; border: 1px solid #e5e7eb; }
+.yard-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.yard-title.self { color: #1e40af; }
+.yard-title.rent { color: #166534; }
+.meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; font-size: 12px; }
+.meta-row input { width: 90px; text-align: right; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; font-family: inherit; }
+
+/* 탭 */
+.tab-bar { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 10px; }
+.tab-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; color: #6b7280; border: none; background: none; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab-btn.active { color: #1a3a5c; border-bottom-color: #1a3a5c; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 고정 입력 그리드 */
+.fixed-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; font-size: 12px; }
+.fixed-grid label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 3px; }
+.fixed-grid input { width: 100%; text-align: right; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; font-family: inherit; }
+.fixed-total { background: #f3f4f6; padding: 5px 8px; border-radius: 4px; font-weight: 700; text-align: right; color: #dc2626; font-size: 12px; }
+
+/* 일별 입력 테이블 */
+.daily-table-wrap { max-height: 260px; overflow-y: auto; }
+.daily-table { border-collapse: collapse; font-size: 11px; width: 100%; }
+.daily-table th, .daily-table td { border: 1px solid #e5e7eb; padding: 4px 7px; text-align: right; white-space: nowrap; }
+.daily-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; }
+.daily-table td:first-child, .daily-table th:first-child { text-align: left; }
+.daily-table input { width: 64px; text-align: right; padding: 3px 5px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 11px; font-family: inherit; }
+
+/* ── OVERWRITE CONFIRM MODAL ── */
+.confirm-msg { font-size: 13px; color: #374151; line-height: 1.7; }
 </style>
 </head>
 <body>
-  <header class="app-header">
-    <div class="header-left">
-      <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
-      <h1>야드 시뮬레이션 (프로토타입)</h1>
+
+<!-- ── HEADER ── -->
+<header class="app-header">
+  <div class="header-left">
+    <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
+    <h1>야드 시뮬레이션</h1>
+  </div>
+  <div class="header-right">
+    <div class="header-summary" id="headerSummary"></div>
+    <span class="header-meta" id="headerMeta"></span>
+    <button class="btn btn-blue" onclick="handleLoad()">반입 데이터 불러오기</button>
+    <button class="btn btn-gray" onclick="openSettings()">상세 설정</button>
+  </div>
+</header>
+
+<!-- ── MAIN TABLE ── -->
+<div class="main-wrap">
+  <div class="card">
+    <div class="scroll-x">
+      <table class="sim-table" id="simTable">
+        <thead>
+          <tr>
+            <th class="gh-date" rowspan="2">날짜</th>
+            <th class="gh-self" colspan="4">🏭 자가야드 (<span id="hSelfCapa"></span>t)</th>
+            <th class="gh-rent" colspan="4">🏗️ 임차야드 (<span id="hRentCapa"></span>t)</th>
+            <th class="gh-total" colspan="3">📊 전체</th>
+          </tr>
+          <tr>
+            <th>반입(t)</th><th>반출(t)</th><th>재고(t)</th><th>적치율</th>
+            <th>반입(t)</th><th>반출(t)</th><th>재고(t)</th><th>적치율</th>
+            <th>반입(t)</th><th>반출(t)</th><th>총재고(t)</th>
+          </tr>
+        </thead>
+        <tbody id="simBody"></tbody>
+      </table>
     </div>
-    <div class="header-right">
-      <button class="btn btn-blue" onclick="runSimulation()">시뮬레이션 실행</button>
-    </div>
-  </header>
+  </div>
+</div>
 
-  <main class="container">
-    <section class="card panel">
-      <h2>시뮬레이션 입력</h2>
+<!-- ── SETTINGS MODAL ── -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>상세 설정</h2>
 
-      <div class="field">
-        <label for="monthSel">조회 월</label>
-        <input id="monthSel" type="month">
+    <!-- 자가야드 -->
+    <div class="yard-block self">
+      <div class="yard-title self">🏭 자가야드</div>
+      <div class="meta-row">
+        <span>용량</span>
+        <input id="sSelfCapa" type="number" value="248400">
+        <span>t &nbsp;·&nbsp; 초기 재고</span>
+        <input id="sSelfInit" type="number" value="0">
+        <span>t</span>
       </div>
-
-      <div class="field">
-        <label for="yardCapa">야드 CAPA (톤)</label>
-        <input id="yardCapa" type="number" step="1" value="200000">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('self','fixed',this)">일 고정 입력</button>
+        <button class="tab-btn" onclick="switchTab('self','daily',this)">일별 직접 입력</button>
       </div>
-
-      <div class="field">
-        <label for="startStock">월초 재고 (톤)</label>
-        <input id="startStock" type="number" step="1" value="50000">
-      </div>
-
-      <div class="field">
-        <label for="defaultCoalTon">석탄 1척 기본 물량 (BL 미입력시, 톤)</label>
-        <input id="defaultCoalTon" type="number" step="1" value="60000">
-      </div>
-
-      <div class="field">
-        <label for="transshipOut">이적 반출 (톤/일)</label>
-        <input id="transshipOut" type="number" step="1" value="1200">
-      </div>
-
-      <div class="field">
-        <label for="landOut">육송반출 (톤/일)</label>
-        <input id="landOut" type="number" step="1" value="1800">
-      </div>
-
-      <div class="field">
-        <label for="seaOut">해송반출 (톤/일)</label>
-        <input id="seaOut" type="number" step="1" value="1600">
-      </div>
-
-      <p class="hint">
-        반입은 `7선석 하역 스케줄`(`berth7_v6`) 중 `cargoType=석탄`만 집계합니다.<br>
-        반출은 이적/육송반출/해송반출의 일 기준 값 합으로 계산합니다.
-      </p>
-    </section>
-
-    <section class="card">
-      <div class="stats" id="stats"></div>
-      <div class="content">
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>일자</th>
-                <th>반입(석탄)</th>
-                <th>이적</th>
-                <th>육송반출</th>
-                <th>해송반출</th>
-                <th>일 반출합</th>
-                <th>야드 재고</th>
-                <th>CAPA 사용률</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody id="resultBody"></tbody>
-          </table>
+      <div class="tab-panel active" id="self-fixed">
+        <div class="fixed-grid">
+          <div><label>이적반출 (t/일)</label><input id="sSelfTransfer" type="number" value="1200" oninput="updateFixedTotal('self')"></div>
+          <div><label>육송반출 (t/일)</label><input id="sSelfLand" type="number" value="1800" oninput="updateFixedTotal('self')"></div>
+          <div><label>해송반출 (t/일)</label><input id="sSelfSea" type="number" value="1600" oninput="updateFixedTotal('self')"></div>
+          <div><label>반출합 (t/일)</label><div class="fixed-total" id="sSelfTotal">4,600</div></div>
         </div>
       </div>
-    </section>
-  </main>
+      <div class="tab-panel" id="self-daily">
+        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="selfDailyBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- 임차야드 -->
+    <div class="yard-block rent">
+      <div class="yard-title rent">🏗️ 임차야드</div>
+      <div class="meta-row">
+        <span>용량</span>
+        <input id="sRentCapa" type="number" value="172800">
+        <span>t &nbsp;·&nbsp; 초기 재고</span>
+        <input id="sRentInit" type="number" value="0">
+        <span>t</span>
+      </div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('rent','fixed',this)">일 고정 입력</button>
+        <button class="tab-btn" onclick="switchTab('rent','daily',this)">일별 직접 입력</button>
+      </div>
+      <div class="tab-panel active" id="rent-fixed">
+        <div class="fixed-grid">
+          <div><label>이적반출 (t/일)</label><input id="sRentTransfer" type="number" value="0" oninput="updateFixedTotal('rent')"></div>
+          <div><label>육송반출 (t/일)</label><input id="sRentLand" type="number" value="0" oninput="updateFixedTotal('rent')"></div>
+          <div><label>해송반출 (t/일)</label><input id="sRentSea" type="number" value="0" oninput="updateFixedTotal('rent')"></div>
+          <div><label>반출합 (t/일)</label><div class="fixed-total" id="sRentTotal">0</div></div>
+        </div>
+      </div>
+      <div class="tab-panel" id="rent-daily">
+        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="rentDailyBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- Silo -->
+    <div class="yard-block silo">
+      <div class="yard-title" style="color:#374151;">🗄️ Silo (참고용 — 시뮬레이션 제외)</div>
+      <div class="meta-row">
+        <span style="font-size:12px;">현재 재고 (참고)</span>
+        <input id="sSilo" type="number" value="0">
+        <span style="font-size:12px;">t</span>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeSettings()">취소</button>
+      <button class="btn btn-blue" onclick="saveSettings()">저장 · 재계산</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── OVERWRITE CONFIRM MODAL ── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="width:400px;">
+    <h2>반입 데이터 불러오기</h2>
+    <p class="confirm-msg">수동으로 편집한 반입 셀이 있습니다.<br>새 데이터를 불러오면 <strong>자동 반입 값이 덮어써집니다.</strong><br>수동 편집 값은 유지됩니다. 계속하시겠습니까?</p>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeConfirm()">취소</button>
+      <button class="btn btn-blue" onclick="confirmLoad()">불러오기</button>
+    </div>
+  </div>
+</div>
 
 <script>
-const BERTH_KEY = 'berth7_v6';
+// ─────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────
+const BERTH_KEY    = 'berth7_v6';
+const SIM_KEY      = 'yard_sim_v1';
+const SIM_DAYS     = 60;
+const DEFAULT_BL   = 60000;
 
-function toDateOnly(dt) {
-  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-}
-function parseDT(v) {
-  if (!v) return null;
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-function num(id) {
-  return Number(document.getElementById(id).value || 0);
-}
-function fmt(n) {
-  return Math.round(n).toLocaleString('ko-KR');
-}
-function monthRange(monthStr) {
-  const now = new Date();
-  const [y, m] = (monthStr || '').split('-').map(Number);
-  const yy = Number.isFinite(y) ? y : now.getFullYear();
-  const mm = Number.isFinite(m) ? m - 1 : now.getMonth();
-  const start = new Date(yy, mm, 1);
-  const end = new Date(yy, mm + 1, 1);
-  return { start, end };
-}
-function dayKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function initMonthInput() {
-  const d = new Date();
-  const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  document.getElementById('monthSel').value = v;
+const DEFAULT_SETTINGS = {
+  selfYard: {
+    capa: 248400, initStock: 0, outMode: 'fixed',
+    outFixed: { transfer: 1200, land: 1800, sea: 1600 },
+    outDaily: {}
+  },
+  rentYard: {
+    capa: 172800, initStock: 0, outMode: 'fixed',
+    outFixed: { transfer: 0, land: 0, sea: 0 },
+    outDaily: {}
+  },
+  silo: { currentStock: 0 },
+  autoInbound: {},
+  manualInbound: {},
+  lastFetched: null
+};
+
+// ─────────────────────────────────────────
+//  SETTINGS PERSISTENCE
+// ─────────────────────────────────────────
+function loadSimSettings() {
+  try {
+    const raw = localStorage.getItem(SIM_KEY);
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    const parsed = JSON.parse(raw);
+    const d = DEFAULT_SETTINGS;
+    return {
+      selfYard: {
+        ...d.selfYard,
+        ...parsed.selfYard,
+        outFixed: { ...d.selfYard.outFixed, ...(parsed.selfYard?.outFixed || {}) },
+        outDaily: parsed.selfYard?.outDaily || {},
+      },
+      rentYard: {
+        ...d.rentYard,
+        ...parsed.rentYard,
+        outFixed: { ...d.rentYard.outFixed, ...(parsed.rentYard?.outFixed || {}) },
+        outDaily: parsed.rentYard?.outDaily || {},
+      },
+      silo:          { ...d.silo,          ...parsed.silo },
+      autoInbound:   parsed.autoInbound   || {},
+      manualInbound: parsed.manualInbound || {},
+      lastFetched:   parsed.lastFetched   || null,
+    };
+  } catch { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
 }
 
-function getCoalInboundByDay(monthStart, monthEnd) {
+function saveSimSettings(s) {
+  localStorage.setItem(SIM_KEY, JSON.stringify(s));
+}
+
+let SIM = loadSimSettings();
+
+// ─────────────────────────────────────────
+//  DATE HELPERS
+// ─────────────────────────────────────────
+const pad = n => String(n).padStart(2, '0');
+function dayKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function toDateOnly(dt) { return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+function parseDT(v) { if (!v) return null; const d = new Date(v); return isNaN(d) ? null : d; }
+function fmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
+function fmtRate(r) { return r.toFixed(1) + '%'; }
+
+function simRange() {
+  const today = toDateOnly(new Date());
+  const end   = new Date(today.getFullYear(), today.getMonth(), today.getDate() + SIM_DAYS);
+  return { start: today, end };
+}
+
+// ─────────────────────────────────────────
+//  INBOUND FROM berth7_v6 (READ-ONLY)
+// ─────────────────────────────────────────
+function calcAutoInbound() {
   const raw = JSON.parse(localStorage.getItem(BERTH_KEY) || '[]');
-  const defaultTon = num('defaultCoalTon');
-  const dayMap = {};
+  const { start, end } = simRange();
+  const result = {};
 
   raw
     .filter(it => it && it.type === 'ship' && (it.cargoType || '').trim() === '석탄')
     .forEach(it => {
       const s0 = parseDT(it.start);
       const e0 = parseDT(it.end);
-      if (!s0 || !e0 || e0 <= monthStart || s0 >= monthEnd) return;
+      if (!s0 || !e0) return;
 
-      const totalTon = Number(it.bl) > 0 ? Number(it.bl) : defaultTon;
-      const s = s0 < monthStart ? monthStart : s0;
-      const e = e0 > monthEnd ? monthEnd : e0;
-      const totalMs = e - s;
+      const totalTon = Number(it.bl) > 0 ? Number(it.bl) : DEFAULT_BL;
+      const totalMs = e0 - s0;
       if (totalMs <= 0) return;
 
-      for (let d = toDateOnly(s); d < e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
-        const dayStart = d;
-        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-        const overlapStart = s > dayStart ? s : dayStart;
-        const overlapEnd = e < dayEnd ? e : dayEnd;
-        const overlapMs = overlapEnd - overlapStart;
-        if (overlapMs <= 0) continue;
+      const s = s0 < start ? start : s0;
+      const e = e0 > end   ? end   : e0;
+      if (e <= s) return;
 
-        const ratio = overlapMs / totalMs;
-        const inbound = totalTon * ratio;
-        const k = dayKey(dayStart);
-        dayMap[k] = (dayMap[k] || 0) + inbound;
+      for (let d = toDateOnly(s); d < e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        if (d < start || d >= end) continue;
+        const dayEnd    = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const overlapMs = Math.min(e0, dayEnd) - Math.max(s0, d);
+        if (overlapMs <= 0) continue;
+        const ton = totalTon * (overlapMs / totalMs);
+        const k   = dayKey(d);
+        if (!result[k]) result[k] = { self: 0, rent: 0 };
+        result[k].self += ton;
       }
     });
 
-  return dayMap;
+  return result;
 }
 
-function runSimulation() {
-  const monthStr = document.getElementById('monthSel').value;
-  const { start, end } = monthRange(monthStr);
-  const capa = num('yardCapa');
-  const outTrans = num('transshipOut');
-  const outLand = num('landOut');
-  const outSea = num('seaOut');
-  const outDaily = outTrans + outLand + outSea;
+// ─────────────────────────────────────────
+//  OUTBOUND HELPERS
+// ─────────────────────────────────────────
+function getOutboundForDay(yardSetting, dateKey) {
+  if (yardSetting.outMode === 'daily') {
+    const d = yardSetting.outDaily[dateKey] || {};
+    return (Number(d.transfer) || 0) + (Number(d.land) || 0) + (Number(d.sea) || 0);
+  }
+  const f = yardSetting.outFixed;
+  return (Number(f.transfer) || 0) + (Number(f.land) || 0) + (Number(f.sea) || 0);
+}
 
-  const inboundMap = getCoalInboundByDay(start, end);
-  const tbody = document.getElementById('resultBody');
-  tbody.innerHTML = '';
-
-  let stock = num('startStock');
-  let maxStock = stock;
-  let minStock = stock;
-  let overDays = 0;
-  let warnDays = 0;
-  let totalIn = 0;
-  let totalOut = 0;
+// ─────────────────────────────────────────
+//  SIMULATION ENGINE
+// ─────────────────────────────────────────
+function runCalc() {
+  const { start, end } = simRange();
+  const rows = [];
+  let selfStock = Number(SIM.selfYard.initStock) || 0;
+  let rentStock = Number(SIM.rentYard.initStock) || 0;
 
   for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
     const k = dayKey(d);
-    const inbound = inboundMap[k] || 0;
-    const outbound = outDaily;
-    totalIn += inbound;
-    totalOut += outbound;
 
-    stock = stock + inbound - outbound;
-    if (stock < 0) stock = 0;
-    maxStock = Math.max(maxStock, stock);
-    minStock = Math.min(minStock, stock);
+    const autoSelf = (SIM.autoInbound[k]   || {}).self || 0;
+    const autoRent = (SIM.autoInbound[k]   || {}).rent || 0;
+    const manSelf  = (SIM.manualInbound[k] || {}).self;
+    const manRent  = (SIM.manualInbound[k] || {}).rent;
 
-    const usage = capa > 0 ? (stock / capa) * 100 : 0;
-    let status = '정상';
-    let cls = '';
-    let badge = 'ok';
-    if (usage >= 100) {
-      status = 'CAPA 초과';
-      cls = 'over';
-      badge = 'over';
-      overDays++;
-    } else if (usage >= 90) {
-      status = '임계(90%+)';
-      cls = 'warn';
-      badge = 'warn';
-      warnDays++;
-    }
+    const selfIn = manSelf != null ? Number(manSelf) : autoSelf;
+    const rentIn = manRent != null ? Number(manRent) : autoRent;
+
+    const selfOut = getOutboundForDay(SIM.selfYard, k);
+    const rentOut = getOutboundForDay(SIM.rentYard, k);
+
+    selfStock = Math.max(0, selfStock + selfIn - selfOut);
+    rentStock = Math.max(0, rentStock + rentIn - rentOut);
+
+    rows.push({
+      date: k,
+      selfIn, selfOut, selfStock,
+      rentIn, rentOut, rentStock,
+      totalIn:    selfIn + rentIn,
+      totalOut:   selfOut + rentOut,
+      totalStock: selfStock + rentStock,
+    });
+  }
+  return rows;
+}
+
+// ─────────────────────────────────────────
+//  RENDERING
+// ─────────────────────────────────────────
+function rateColor(rate) {
+  if (rate >= 100) return '#dc2626';
+  if (rate >= 90)  return '#ea580c';
+  if (rate >= 80)  return '#d97706';
+  return '#1f2937';
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('simBody');
+  tbody.innerHTML = '';
+
+  rows.forEach(row => {
+    const selfCapa = Number(SIM.selfYard.capa) || 1;
+    const rentCapa = Number(SIM.rentYard.capa) || 1;
+    const selfRate = (row.selfStock / selfCapa) * 100;
+    const rentRate = (row.rentStock / rentCapa) * 100;
+
+    const manK     = SIM.manualInbound[row.date] || {};
+    const selfManual = manK.self != null;
+    const rentManual = manK.rent != null;
 
     const tr = document.createElement('tr');
-    if (cls) tr.className = cls;
+    tr.innerHTML = `
+      <td>${row.date}</td>
+      <td class="${selfManual ? 'manual-edited' : ''}" data-yard="self" data-date="${row.date}">${fmt(row.selfIn)}</td>
+      <td>${fmt(row.selfOut)}</td>
+      <td><strong>${fmt(row.selfStock)}</strong></td>
+      <td style="font-weight:700;color:${rateColor(selfRate)}">${fmtRate(selfRate)}</td>
+      <td class="${rentManual ? 'manual-edited' : ''}" data-yard="rent" data-date="${row.date}">${fmt(row.rentIn)}</td>
+      <td>${fmt(row.rentOut)}</td>
+      <td><strong>${fmt(row.rentStock)}</strong></td>
+      <td style="font-weight:700;color:${rateColor(rentRate)}">${fmtRate(rentRate)}</td>
+      <td>${fmt(row.totalIn)}</td>
+      <td>${fmt(row.totalOut)}</td>
+      <td><strong>${fmt(row.totalStock)}</strong></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderHeader() {
+  document.getElementById('hSelfCapa').textContent = fmt(SIM.selfYard.capa);
+  document.getElementById('hRentCapa').textContent = fmt(SIM.rentYard.capa);
+}
+
+function renderHeaderSummary(rows) {
+  if (!rows.length) return;
+  const last = rows[0];
+  const selfRate = (last.selfStock / (SIM.selfYard.capa || 1)) * 100;
+  const rentRate = (last.rentStock / (SIM.rentYard.capa || 1)) * 100;
+  document.getElementById('headerSummary').innerHTML = `
+    <span class="hs">자가야드 <strong>${fmt(last.selfStock)}</strong>t
+      <span style="color:${rateColor(selfRate)};font-weight:700;">${fmtRate(selfRate)}</span></span>
+    <span class="hs">임차야드 <strong>${fmt(last.rentStock)}</strong>t
+      <span style="color:${rateColor(rentRate)};font-weight:700;">${fmtRate(rentRate)}</span></span>
+    <span class="hs">총재고 <strong>${fmt(last.totalStock)}</strong>t</span>
+  `;
+  if (SIM.lastFetched) {
+    const d = new Date(SIM.lastFetched);
+    document.getElementById('headerMeta').textContent =
+      `마지막 업데이트: ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+}
+
+function refresh() {
+  const rows = runCalc();
+  renderHeader();
+  renderTable(rows);
+  renderHeaderSummary(rows);
+}
+
+// ─────────────────────────────────────────
+//  SETTINGS MODAL
+// ─────────────────────────────────────────
+function switchTab(yard, mode, btn) {
+  document.getElementById(`${yard}-fixed`).classList.toggle('active', mode === 'fixed');
+  document.getElementById(`${yard}-daily`).classList.toggle('active', mode === 'daily');
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function updateFixedTotal(yard) {
+  const c = yard === 'self' ? 'Self' : 'Rent';
+  const t = Number(document.getElementById(`s${c}Transfer`).value) || 0;
+  const l = Number(document.getElementById(`s${c}Land`).value)     || 0;
+  const s = Number(document.getElementById(`s${c}Sea`).value)      || 0;
+  document.getElementById(`s${c}Total`).textContent = fmt(t + l + s);
+}
+
+function buildDailyBody(yardKey, tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  tbody.innerHTML = '';
+  const { start, end } = simRange();
+  const yardSetting = SIM[yardKey + 'Yard'];
+  for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    const k  = dayKey(d);
+    const od = (yardSetting.outDaily || {})[k] || {};
+    const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${k}</td>
-      <td>${fmt(inbound)}</td>
-      <td>${fmt(outTrans)}</td>
-      <td>${fmt(outLand)}</td>
-      <td>${fmt(outSea)}</td>
-      <td>${fmt(outbound)}</td>
-      <td><strong>${fmt(stock)}</strong></td>
-      <td>${usage.toFixed(1)}%</td>
-      <td><span class="badge ${badge}">${status}</span></td>
+      <td><input type="number" value="${od.transfer || 0}" data-dk="${k}" data-field="transfer" data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td><input type="number" value="${od.land     || 0}" data-dk="${k}" data-field="land"     data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td><input type="number" value="${od.sea      || 0}" data-dk="${k}" data-field="sea"      data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td>${fmt((od.transfer||0)+(od.land||0)+(od.sea||0))}</td>
     `;
     tbody.appendChild(tr);
   }
-
-  const stats = document.getElementById('stats');
-  stats.innerHTML = `
-    <div class="stat"><div class="k">월 반입 합계(석탄)</div><div class="v">${fmt(totalIn)} 톤</div></div>
-    <div class="stat"><div class="k">월 반출 합계</div><div class="v">${fmt(totalOut)} 톤</div></div>
-    <div class="stat"><div class="k">최대 야드 재고</div><div class="v">${fmt(maxStock)} 톤</div></div>
-    <div class="stat"><div class="k">CAPA 리스크 일수</div><div class="v">${overDays}일 / 경고 ${warnDays}일</div></div>
-  `;
 }
 
-initMonthInput();
-runSimulation();
+function onDailyInput(input) {
+  const { dk, field, yard } = input.dataset;
+  const yardKey = yard + 'Yard';
+  if (!SIM[yardKey].outDaily[dk]) SIM[yardKey].outDaily[dk] = {};
+  SIM[yardKey].outDaily[dk][field] = Number(input.value) || 0;
+  const d = SIM[yardKey].outDaily[dk];
+  const total = (d.transfer||0) + (d.land||0) + (d.sea||0);
+  input.closest('tr').lastElementChild.textContent = fmt(total);
+}
+
+function openSettings() {
+  const s = SIM;
+  document.getElementById('sSelfCapa').value      = s.selfYard.capa;
+  document.getElementById('sSelfInit').value      = s.selfYard.initStock;
+  document.getElementById('sSelfTransfer').value  = s.selfYard.outFixed.transfer;
+  document.getElementById('sSelfLand').value      = s.selfYard.outFixed.land;
+  document.getElementById('sSelfSea').value       = s.selfYard.outFixed.sea;
+  updateFixedTotal('self');
+
+  document.getElementById('sRentCapa').value      = s.rentYard.capa;
+  document.getElementById('sRentInit').value      = s.rentYard.initStock;
+  document.getElementById('sRentTransfer').value  = s.rentYard.outFixed.transfer;
+  document.getElementById('sRentLand').value      = s.rentYard.outFixed.land;
+  document.getElementById('sRentSea').value       = s.rentYard.outFixed.sea;
+  updateFixedTotal('rent');
+
+  document.getElementById('sSilo').value = s.silo.currentStock;
+
+  buildDailyBody('self', 'selfDailyBody');
+  buildDailyBody('rent', 'rentDailyBody');
+
+  // Restore active tab state
+  ['self', 'rent'].forEach(yard => {
+    const mode = SIM[yard + 'Yard'].outMode || 'fixed';
+    const block = document.getElementById(`${yard}-fixed`).closest('.yard-block');
+    block.querySelectorAll('.tab-btn').forEach(btn => {
+      const isFixed = btn.textContent.includes('고정');
+      btn.classList.toggle('active', (mode === 'fixed') === isFixed);
+    });
+    document.getElementById(`${yard}-fixed`).classList.toggle('active', mode === 'fixed');
+    document.getElementById(`${yard}-daily`).classList.toggle('active', mode === 'daily');
+  });
+
+  document.getElementById('settingsModal').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('show');
+}
+
+function saveSettings() {
+  SIM.selfYard.capa       = Number(document.getElementById('sSelfCapa').value)     || 248400;
+  SIM.selfYard.initStock  = Number(document.getElementById('sSelfInit').value)     || 0;
+  SIM.selfYard.outFixed   = {
+    transfer: Number(document.getElementById('sSelfTransfer').value) || 0,
+    land:     Number(document.getElementById('sSelfLand').value)     || 0,
+    sea:      Number(document.getElementById('sSelfSea').value)      || 0,
+  };
+  SIM.selfYard.outMode = document.getElementById('self-daily').classList.contains('active') ? 'daily' : 'fixed';
+
+  SIM.rentYard.capa       = Number(document.getElementById('sRentCapa').value)     || 172800;
+  SIM.rentYard.initStock  = Number(document.getElementById('sRentInit').value)     || 0;
+  SIM.rentYard.outFixed   = {
+    transfer: Number(document.getElementById('sRentTransfer').value) || 0,
+    land:     Number(document.getElementById('sRentLand').value)     || 0,
+    sea:      Number(document.getElementById('sRentSea').value)      || 0,
+  };
+  SIM.rentYard.outMode = document.getElementById('rent-daily').classList.contains('active') ? 'daily' : 'fixed';
+
+  SIM.silo.currentStock = Number(document.getElementById('sSilo').value) || 0;
+
+  saveSimSettings(SIM);
+  closeSettings();
+  refresh();
+}
+
+// ─────────────────────────────────────────
+//  LOAD FROM berth7_v6
+// ─────────────────────────────────────────
+function handleLoad() {
+  const hasManual = Object.keys(SIM.manualInbound).length > 0;
+  if (hasManual) {
+    document.getElementById('confirmModal').classList.add('show');
+  } else {
+    doLoad();
+  }
+}
+
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.remove('show');
+}
+
+function confirmLoad() {
+  closeConfirm();
+  doLoad();
+}
+
+function doLoad() {
+  SIM.autoInbound  = calcAutoInbound();
+  SIM.lastFetched  = new Date().toISOString();
+  saveSimSettings(SIM);
+  refresh();
+}
+
+// ─────────────────────────────────────────
+//  INLINE CELL EDITING
+// ─────────────────────────────────────────
+document.getElementById('simBody').addEventListener('click', e => {
+  const td = e.target.closest('td[data-yard]');
+  if (!td || td.querySelector('input')) return;
+
+  const yard = td.dataset.yard;
+  const date = td.dataset.date;
+  const cur  = (SIM.manualInbound[date] || {})[yard];
+  const autoVal = (SIM.autoInbound[date] || {})[yard] || 0;
+  const val = cur != null ? cur : autoVal;
+
+  td.innerHTML = '';
+  const input = document.createElement('input');
+  input.type  = 'number';
+  input.value = Math.round(val);
+  input.style.cssText = 'width:80px;text-align:right;padding:3px 5px;border:1px solid #3b82f6;border-radius:3px;font-size:12px;font-family:inherit;';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  function commit() {
+    const newVal = Number(input.value);
+    if (!SIM.manualInbound[date]) SIM.manualInbound[date] = {};
+    SIM.manualInbound[date][yard] = newVal;
+    saveSimSettings(SIM);
+    refresh();
+  }
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter')  { ev.preventDefault(); input.removeEventListener('blur', commit); commit(); }
+    if (ev.key === 'Escape') { input.removeEventListener('blur', commit); saveSimSettings(SIM); refresh(); }
+  });
+});
+
+// ─────────────────────────────────────────
+//  MODAL CLOSE ON OVERLAY CLICK
+// ─────────────────────────────────────────
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target.id === 'settingsModal') closeSettings();
+});
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target.id === 'confirmModal') closeConfirm();
+});
+
+// ─────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────
+refresh();
 </script>
 </body>
 </html>
