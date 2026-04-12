@@ -451,15 +451,15 @@ function renderHeader() {
 
 function renderHeaderSummary(rows) {
   if (!rows.length) return;
-  const last = rows[0];
-  const selfRate = (last.selfStock / (SIM.selfYard.capa || 1)) * 100;
-  const rentRate = (last.rentStock / (SIM.rentYard.capa || 1)) * 100;
+  const today = rows[0];
+  const selfRate = (today.selfStock / (SIM.selfYard.capa || 1)) * 100;
+  const rentRate = (today.rentStock / (SIM.rentYard.capa || 1)) * 100;
   document.getElementById('headerSummary').innerHTML = `
-    <span class="hs">자가야드 <strong>${fmt(last.selfStock)}</strong>t
+    <span class="hs">자가야드 <strong>${fmt(today.selfStock)}</strong>t
       <span style="color:${rateColor(selfRate)};font-weight:700;">${fmtRate(selfRate)}</span></span>
-    <span class="hs">임차야드 <strong>${fmt(last.rentStock)}</strong>t
+    <span class="hs">임차야드 <strong>${fmt(today.rentStock)}</strong>t
       <span style="color:${rateColor(rentRate)};font-weight:700;">${fmtRate(rentRate)}</span></span>
-    <span class="hs">총재고 <strong>${fmt(last.totalStock)}</strong>t</span>
+    <span class="hs">총재고 <strong>${fmt(today.totalStock)}</strong>t</span>
   `;
   if (SIM.lastFetched) {
     const d = new Date(SIM.lastFetched);
@@ -521,6 +521,7 @@ function onDailyInput(input) {
   const d = SIM[yardKey].outDaily[dk];
   const total = (d.transfer||0) + (d.land||0) + (d.sea||0);
   input.closest('tr').lastElementChild.textContent = fmt(total);
+  saveSimSettings(SIM);
 }
 
 function openSettings() {
@@ -564,8 +565,11 @@ function closeSettings() {
 }
 
 function saveSettings() {
-  SIM.selfYard.capa       = Number(document.getElementById('sSelfCapa').value)     || 248400;
-  SIM.selfYard.initStock  = Number(document.getElementById('sSelfInit').value)     || 0;
+  const selfCapa = Number(document.getElementById('sSelfCapa').value);
+  SIM.selfYard.capa = isNaN(selfCapa) ? 248400 : selfCapa;
+
+  const selfInit = Number(document.getElementById('sSelfInit').value);
+  SIM.selfYard.initStock = isNaN(selfInit) ? 0 : selfInit;
   SIM.selfYard.outFixed   = {
     transfer: Number(document.getElementById('sSelfTransfer').value) || 0,
     land:     Number(document.getElementById('sSelfLand').value)     || 0,
@@ -573,8 +577,11 @@ function saveSettings() {
   };
   SIM.selfYard.outMode = document.getElementById('self-daily').classList.contains('active') ? 'daily' : 'fixed';
 
-  SIM.rentYard.capa       = Number(document.getElementById('sRentCapa').value)     || 172800;
-  SIM.rentYard.initStock  = Number(document.getElementById('sRentInit').value)     || 0;
+  const rentCapa = Number(document.getElementById('sRentCapa').value);
+  SIM.rentYard.capa = isNaN(rentCapa) ? 172800 : rentCapa;
+
+  const rentInit = Number(document.getElementById('sRentInit').value);
+  SIM.rentYard.initStock = isNaN(rentInit) ? 0 : rentInit;
   SIM.rentYard.outFixed   = {
     transfer: Number(document.getElementById('sRentTransfer').value) || 0,
     land:     Number(document.getElementById('sRentLand').value)     || 0,
@@ -582,7 +589,8 @@ function saveSettings() {
   };
   SIM.rentYard.outMode = document.getElementById('rent-daily').classList.contains('active') ? 'daily' : 'fixed';
 
-  SIM.silo.currentStock = Number(document.getElementById('sSilo').value) || 0;
+  const siloStock = Number(document.getElementById('sSilo').value);
+  SIM.silo.currentStock = isNaN(siloStock) ? 0 : siloStock;
 
   saveSimSettings(SIM);
   closeSettings();
@@ -639,7 +647,10 @@ document.getElementById('simBody').addEventListener('click', e => {
   input.focus();
   input.select();
 
+  let committed = false;
   function commit() {
+    if (committed) return;
+    committed = true;
     const newVal = Number(input.value);
     if (!SIM.manualInbound[date]) SIM.manualInbound[date] = {};
     SIM.manualInbound[date][yard] = newVal;
@@ -649,8 +660,8 @@ document.getElementById('simBody').addEventListener('click', e => {
 
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', ev => {
-    if (ev.key === 'Enter')  { ev.preventDefault(); input.removeEventListener('blur', commit); commit(); }
-    if (ev.key === 'Escape') { input.removeEventListener('blur', commit); saveSimSettings(SIM); refresh(); }
+    if (ev.key === 'Enter')  { ev.preventDefault(); commit(); }
+    if (ev.key === 'Escape') { committed = true; refresh(); }
   });
 });
 
