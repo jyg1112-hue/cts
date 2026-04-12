@@ -105,7 +105,19 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #11
 
 /* ── OVERWRITE CONFIRM MODAL ── */
 .confirm-msg { font-size: 13px; color: #374151; line-height: 1.7; }
+
+/* ── CHART ── */
+#chartWrap {
+  margin: 12px 18px 0;
+}
+#chartWrap .card {
+  padding: 16px 18px 12px;
+}
+#chartWrap canvas {
+  max-height: 260px;
+}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -119,9 +131,17 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #11
     <div class="header-summary" id="headerSummary"></div>
     <span class="header-meta" id="headerMeta"></span>
     <button class="btn btn-blue" onclick="handleLoad()">반입 데이터 불러오기</button>
+    <button class="btn btn-gray" id="btnChart" onclick="toggleChart()">📈 차트 보기</button>
     <button class="btn btn-gray" onclick="openSettings()">상세 설정</button>
   </div>
 </header>
+
+<!-- ── CHART ── -->
+<div id="chartWrap" hidden>
+  <div class="card">
+    <canvas id="stockChart"></canvas>
+  </div>
+</div>
 
 <!-- ── MAIN TABLE ── -->
 <div class="main-wrap">
