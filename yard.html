@@ -566,7 +566,7 @@ function closeSettings() {
 
 function saveSettings() {
   const selfCapa = Number(document.getElementById('sSelfCapa').value);
-  SIM.selfYard.capa = isNaN(selfCapa) ? 248400 : selfCapa;
+  SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
 
   const selfInit = Number(document.getElementById('sSelfInit').value);
   SIM.selfYard.initStock = isNaN(selfInit) ? 0 : selfInit;
@@ -578,7 +578,7 @@ function saveSettings() {
   SIM.selfYard.outMode = document.getElementById('self-daily').classList.contains('active') ? 'daily' : 'fixed';
 
   const rentCapa = Number(document.getElementById('sRentCapa').value);
-  SIM.rentYard.capa = isNaN(rentCapa) ? 172800 : rentCapa;
+  SIM.rentYard.capa = rentCapa > 0 ? rentCapa : 172800;
 
   const rentInit = Number(document.getElementById('sRentInit').value);
   SIM.rentYard.initStock = isNaN(rentInit) ? 0 : rentInit;
