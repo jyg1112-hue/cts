@@ -1,3 +1,31 @@
+# 야드 시뮬레이션 구현 계획
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** `yard.html`을 전면 교체하여 자가야드/임차야드 두 개 야드의 반입·반출·재고·적치율을 날짜별로 시뮬레이션하는 페이지를 구현한다.
+
+**Architecture:** 단일 HTML 파일(vanilla JS + CSS). `localStorage['berth7_v6']`에서 석탄 반입 데이터를 읽어(읽기 전용) start~end 기간 비율로 날짜별 반입량을 계산하고, 반출은 `localStorage['yard_sim_v1']`에 저장된 설정(고정값 또는 일별값)으로 처리한다. 기존 `yard.html` 전체를 새 코드로 교체한다.
+
+**Tech Stack:** HTML5, CSS3, Vanilla JavaScript (ES6+), localStorage
+
+---
+
+## 파일 구조
+
+| 파일 | 역할 |
+|------|------|
+| `yard.html` | 전체 구현 (교체) |
+
+---
+
+## Task 1: 페이지 뼈대 — HTML + CSS
+
+**Files:**
+- Modify: `yard.html` (전체 교체)
+
+- [ ] **Step 1: yard.html을 아래 내용으로 교체**
+
+```html
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -39,25 +67,10 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #11
 .scroll-x { overflow-x: auto; }
 
 /* ── SIMULATION TABLE ── */
-/* fixed: 열 너비를 내용(특히 input)에 맡기지 않아 편집 시 열이 늘어나지 않음 */
-.sim-table {
-  border-collapse: collapse;
-  font-size: 12px;
-  min-width: 960px;
-  width: 100%;
-  table-layout: fixed;
-}
-.sim-table col.sim-col-date { width: 7.25rem; }
-.sim-table col.sim-col-num { width: auto; }
+.sim-table { border-collapse: collapse; font-size: 12px; min-width: 960px; width: 100%; }
 .sim-table th, .sim-table td {
   border: 1px solid #e5e7eb; padding: 6px 8px;
   text-align: right; white-space: nowrap;
-}
-/* 편집 가능 셀: 테이블 셀 기본 min-width:min-content 때문에 input이 열을 넓히는 것 방지 */
-.sim-table td[data-yard][data-cell] {
-  min-width: 0;
-  overflow: hidden;
-  vertical-align: middle;
 }
 .sim-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; z-index: 2; }
 .sim-table td:first-child, .sim-table th:first-child { text-align: left; }
@@ -68,32 +81,8 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #11
 .sim-table .gh-total { background: #312e81; color: #fff; text-align: center; }
 .sim-table .gh-date  { background: #1a3a5c; color: #fff; }
 
-/* 메인 테이블 인라인 편집: 테두리·박스 강조 없음, 열 폭 안에서만 표시 */
-.sim-table .sim-cell-input {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  margin: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  text-align: right;
-  font: inherit;
-  font-size: 12px;
-  line-height: inherit;
-  font-family: inherit;
-  padding: 0;
-  box-sizing: border-box;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-.sim-table .sim-cell-input:focus {
-  outline: none;
-}
+/* 수동 편집 셀 */
+.sim-table td.manual-edited { outline: 2px solid #3b82f6; outline-offset: -2px; }
 
 /* ── MODAL ── */
 .modal-overlay {
@@ -140,35 +129,11 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #11
 .daily-table th, .daily-table td { border: 1px solid #e5e7eb; padding: 4px 7px; text-align: right; white-space: nowrap; }
 .daily-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; }
 .daily-table td:first-child, .daily-table th:first-child { text-align: left; }
-.daily-table .daily-input-cell { position: relative; vertical-align: middle; }
-.daily-table .daily-cell-wrap { position: relative; display: inline-block; vertical-align: middle; }
-.daily-table input.daily-num-input {
-  width: 64px; text-align: right; padding: 3px 5px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 11px; font-family: inherit;
-}
-.daily-table .daily-fill-handle {
-  position: absolute; right: -4px; bottom: -3px; width: 7px; height: 7px;
-  background: #64748b; border: 1px solid #fff; border-radius: 1px; cursor: crosshair;
-  box-shadow: 0 0 0 1px #cbd5e1; z-index: 2;
-}
-.daily-table .daily-fill-handle:hover { background: #334155; }
-body.daily-fill-dragging { user-select: none; cursor: crosshair; }
-body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
+.daily-table input { width: 64px; text-align: right; padding: 3px 5px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 11px; font-family: inherit; }
 
 /* ── OVERWRITE CONFIRM MODAL ── */
 .confirm-msg { font-size: 13px; color: #374151; line-height: 1.7; }
-
-/* ── CHART ── */
-#chartWrap {
-  margin: 12px 18px 0;
-}
-#chartWrap .card {
-  padding: 16px 18px 12px;
-}
-#chartWrap canvas {
-  max-height: 260px;
-}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -182,27 +147,15 @@ body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
     <div class="header-summary" id="headerSummary"></div>
     <span class="header-meta" id="headerMeta"></span>
     <button class="btn btn-blue" onclick="handleLoad()">반입 데이터 불러오기</button>
-    <button class="btn btn-gray" id="btnChart" onclick="toggleChart()">📈 차트 닫기</button>
     <button class="btn btn-gray" onclick="openSettings()">상세 설정</button>
   </div>
 </header>
-
-<!-- ── CHART ── -->
-<div id="chartWrap">
-  <div class="card">
-    <canvas id="stockChart"></canvas>
-  </div>
-</div>
 
 <!-- ── MAIN TABLE ── -->
 <div class="main-wrap">
   <div class="card">
     <div class="scroll-x">
       <table class="sim-table" id="simTable">
-        <colgroup>
-          <col class="sim-col-date">
-          <col span="11" class="sim-col-num">
-        </colgroup>
         <thead>
           <tr>
             <th class="gh-date" rowspan="2">날짜</th>
@@ -250,7 +203,7 @@ body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
         </div>
       </div>
       <div class="tab-panel" id="self-daily">
-        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="selfDailyBody" class="daily-input-tbody"></tbody></table></div>
+        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="selfDailyBody"></tbody></table></div>
       </div>
     </div>
 
@@ -277,7 +230,7 @@ body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
         </div>
       </div>
       <div class="tab-panel" id="rent-daily">
-        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="rentDailyBody" class="daily-input-tbody"></tbody></table></div>
+        <div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>날짜</th><th>이적(t)</th><th>육송(t)</th><th>해송(t)</th><th>반출합</th></tr></thead><tbody id="rentDailyBody"></tbody></table></div>
       </div>
     </div>
 
@@ -302,7 +255,7 @@ body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
 <div class="modal-overlay" id="confirmModal">
   <div class="modal" style="width:400px;">
     <h2>반입 데이터 불러오기</h2>
-    <p class="confirm-msg">수동으로 편집한 반입·반출 셀이 있습니다.<br>새 데이터를 불러오면 <strong>자동 반입 값이 덮어써집니다.</strong><br>수동 편집 값은 유지됩니다. 계속하시겠습니까?</p>
+    <p class="confirm-msg">수동으로 편집한 반입 셀이 있습니다.<br>새 데이터를 불러오면 <strong>자동 반입 값이 덮어써집니다.</strong><br>수동 편집 값은 유지됩니다. 계속하시겠습니까?</p>
     <div class="modal-footer">
       <button class="btn btn-gray" onclick="closeConfirm()">취소</button>
       <button class="btn btn-blue" onclick="confirmLoad()">불러오기</button>
@@ -331,12 +284,27 @@ const DEFAULT_SETTINGS = {
     outDaily: {}
   },
   silo: { currentStock: 0 },
-  autoInbound: {},
-  manualInbound: {},
-  manualOutbound: {},
+  autoInbound: {},   // { 'YYYY-MM-DD': { self: ton, rent: ton } }  — from berth
+  manualInbound: {}, // { 'YYYY-MM-DD': { self: ton, rent: ton } }  — user edits
   lastFetched: null
 };
+</script>
+</body>
+</html>
+```
 
+- [ ] **Step 2: 브라우저에서 `/yard` 접속, 헤더와 빈 테이블 틀이 보이는지 확인**
+
+---
+
+## Task 2: 데이터 레이어 — localStorage 읽기/쓰기
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: DEFAULT_SETTINGS 선언 아래에 설정 load/save 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  SETTINGS PERSISTENCE
 // ─────────────────────────────────────────
@@ -345,24 +313,14 @@ function loadSimSettings() {
     const raw = localStorage.getItem(SIM_KEY);
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     const parsed = JSON.parse(raw);
+    // deep-merge: 누락된 키는 기본값으로 채움
     const d = DEFAULT_SETTINGS;
     return {
-      selfYard: {
-        ...d.selfYard,
-        ...parsed.selfYard,
-        outFixed: { ...d.selfYard.outFixed, ...(parsed.selfYard?.outFixed || {}) },
-        outDaily: parsed.selfYard?.outDaily || {},
-      },
-      rentYard: {
-        ...d.rentYard,
-        ...parsed.rentYard,
-        outFixed: { ...d.rentYard.outFixed, ...(parsed.rentYard?.outFixed || {}) },
-        outDaily: parsed.rentYard?.outDaily || {},
-      },
+      selfYard:      { ...d.selfYard,      ...parsed.selfYard,      outFixed: { ...d.selfYard.outFixed, ...(parsed.selfYard?.outFixed || {}) } },
+      rentYard:      { ...d.rentYard,      ...parsed.rentYard,      outFixed: { ...d.rentYard.outFixed, ...(parsed.rentYard?.outFixed || {}) } },
       silo:          { ...d.silo,          ...parsed.silo },
       autoInbound:   parsed.autoInbound   || {},
       manualInbound: parsed.manualInbound || {},
-      manualOutbound: parsed.manualOutbound || {},
       lastFetched:   parsed.lastFetched   || null,
     };
   } catch { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
@@ -372,8 +330,22 @@ function saveSimSettings(s) {
   localStorage.setItem(SIM_KEY, JSON.stringify(s));
 }
 
+// 앱 전역 상태
 let SIM = loadSimSettings();
+```
 
+- [ ] **Step 2: 브라우저 콘솔에서 `SIM` 입력 후 DEFAULT_SETTINGS 구조대로 출력되는지 확인**
+
+---
+
+## Task 3: 반입 계산 — berth7_v6 파싱
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 날짜 헬퍼 + 반입 계산 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  DATE HELPERS
 // ─────────────────────────────────────────
@@ -384,6 +356,7 @@ function parseDT(v) { if (!v) return null; const d = new Date(v); return isNaN(d
 function fmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
 function fmtRate(r) { return r.toFixed(1) + '%'; }
 
+/** simStart(오늘 00:00)와 simEnd(+60일 00:00)을 반환 */
 function simRange() {
   const today = toDateOnly(new Date());
   const end   = new Date(today.getFullYear(), today.getMonth(), today.getDate() + SIM_DAYS);
@@ -391,8 +364,13 @@ function simRange() {
 }
 
 // ─────────────────────────────────────────
-//  INBOUND FROM berth7_v6 (READ-ONLY)
+//  INBOUND FROM berth7_v6 (읽기 전용)
 // ─────────────────────────────────────────
+/**
+ * berth7_v6에서 석탄 반입량을 날짜별로 계산한다.
+ * 모든 반입은 자가야드(self)로 처리. rent는 항상 0.
+ * @returns {Object} { 'YYYY-MM-DD': { self: number, rent: number } }
+ */
 function calcAutoInbound() {
   const raw = JSON.parse(localStorage.getItem(BERTH_KEY) || '[]');
   const { start, end } = simRange();
@@ -406,17 +384,15 @@ function calcAutoInbound() {
       if (!s0 || !e0) return;
 
       const totalTon = Number(it.bl) > 0 ? Number(it.bl) : DEFAULT_BL;
-      const totalMs = e0 - s0;
-      if (totalMs <= 0) return;
-
       const s = s0 < start ? start : s0;
       const e = e0 > end   ? end   : e0;
-      if (e <= s) return;
+      const totalMs = e0 - s0;  // 전체 하역 기간
+      if (totalMs <= 0 || e <= s) return;
 
       for (let d = toDateOnly(s); d < e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
         if (d < start || d >= end) continue;
-        const dayEnd    = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-        const overlapMs = Math.min(e0, dayEnd) - Math.max(s0, d);
+        const dayEnd      = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const overlapMs   = Math.min(e0, dayEnd) - Math.max(s0, d);
         if (overlapMs <= 0) continue;
         const ton = totalTon * (overlapMs / totalMs);
         const k   = dayKey(d);
@@ -427,10 +403,31 @@ function calcAutoInbound() {
 
   return result;
 }
+```
 
+- [ ] **Step 2: 브라우저 콘솔에서 `calcAutoInbound()` 실행**
+  - `berth7_v6`에 석탄 데이터가 있으면 날짜별 객체 반환
+  - 없으면 `{}` 반환 (정상)
+
+---
+
+## Task 4: 일별 반출량 계산 함수
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 반출량 계산 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  OUTBOUND HELPERS
 // ─────────────────────────────────────────
+/**
+ * 특정 날짜의 야드 반출량 합계를 반환한다.
+ * @param {Object} yardSetting  SIM.selfYard 또는 SIM.rentYard
+ * @param {string} dateKey      'YYYY-MM-DD'
+ * @returns {number}
+ */
 function getOutboundForDay(yardSetting, dateKey) {
   if (yardSetting.outMode === 'daily') {
     const d = yardSetting.outDaily[dateKey] || {};
@@ -439,10 +436,32 @@ function getOutboundForDay(yardSetting, dateKey) {
   const f = yardSetting.outFixed;
   return (Number(f.transfer) || 0) + (Number(f.land) || 0) + (Number(f.sea) || 0);
 }
+```
 
+- [ ] **Step 2: 콘솔에서 `getOutboundForDay(SIM.selfYard, '2026-04-11')` 호출, 기본값 4600 반환 확인**
+
+---
+
+## Task 5: 시뮬레이션 계산 엔진
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 계산 엔진 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  SIMULATION ENGINE
 // ─────────────────────────────────────────
+/**
+ * 60일치 시뮬레이션 행 배열을 계산한다.
+ * @returns {Array<{
+ *   date: string,
+ *   selfIn: number, selfOut: number, selfStock: number,
+ *   rentIn: number, rentOut: number, rentStock: number,
+ *   totalIn: number, totalOut: number, totalStock: number
+ * }>}
+ */
 function runCalc() {
   const { start, end } = simRange();
   const rows = [];
@@ -452,18 +471,18 @@ function runCalc() {
   for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
     const k = dayKey(d);
 
+    // 반입: auto + manual
     const autoSelf = (SIM.autoInbound[k]   || {}).self || 0;
     const autoRent = (SIM.autoInbound[k]   || {}).rent || 0;
     const manSelf  = (SIM.manualInbound[k] || {}).self;
     const manRent  = (SIM.manualInbound[k] || {}).rent;
 
+    // manual이 null/undefined면 auto 사용, 숫자면 override
     const selfIn = manSelf != null ? Number(manSelf) : autoSelf;
     const rentIn = manRent != null ? Number(manRent) : autoRent;
 
-    const manSelfOut = (SIM.manualOutbound[k] || {}).self;
-    const manRentOut = (SIM.manualOutbound[k] || {}).rent;
-    const selfOut = manSelfOut != null ? Number(manSelfOut) : getOutboundForDay(SIM.selfYard, k);
-    const rentOut = manRentOut != null ? Number(manRentOut) : getOutboundForDay(SIM.rentYard, k);
+    const selfOut = getOutboundForDay(SIM.selfYard, k);
+    const rentOut = getOutboundForDay(SIM.rentYard, k);
 
     selfStock = Math.max(0, selfStock + selfIn - selfOut);
     rentStock = Math.max(0, rentStock + rentIn - rentOut);
@@ -479,10 +498,25 @@ function runCalc() {
   }
   return rows;
 }
+```
 
+- [ ] **Step 2: 콘솔에서 `runCalc()` 실행, 60개 행 배열이 반환되는지 확인**
+  - 각 행에 `date`, `selfStock`, `rentStock` 등 키가 있어야 함
+
+---
+
+## Task 6: 테이블 렌더링
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 적치율 색상 함수 + 테이블 렌더 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  RENDERING
 // ─────────────────────────────────────────
+/** 적치율(0~100+)에 따른 글자색 반환 */
 function rateColor(rate) {
   if (rate >= 100) return '#dc2626';
   if (rate >= 90)  return '#ea580c';
@@ -500,15 +534,20 @@ function renderTable(rows) {
     const selfRate = (row.selfStock / selfCapa) * 100;
     const rentRate = (row.rentStock / rentCapa) * 100;
 
+    // 수동 편집 여부 확인
+    const manK = SIM.manualInbound[row.date] || {};
+    const selfManual = manK.self != null;
+    const rentManual = manK.rent != null;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row.date}</td>
-      <td data-yard="self" data-date="${row.date}" data-cell="in">${fmt(row.selfIn)}</td>
-      <td data-yard="self" data-date="${row.date}" data-cell="out">${fmt(row.selfOut)}</td>
+      <td class="${selfManual ? 'manual-edited' : ''}" data-yard="self" data-date="${row.date}">${fmt(row.selfIn)}</td>
+      <td>${fmt(row.selfOut)}</td>
       <td><strong>${fmt(row.selfStock)}</strong></td>
       <td style="font-weight:700;color:${rateColor(selfRate)}">${fmtRate(selfRate)}</td>
-      <td data-yard="rent" data-date="${row.date}" data-cell="in">${fmt(row.rentIn)}</td>
-      <td data-yard="rent" data-date="${row.date}" data-cell="out">${fmt(row.rentOut)}</td>
+      <td class="${rentManual ? 'manual-edited' : ''}" data-yard="rent" data-date="${row.date}">${fmt(row.rentIn)}</td>
+      <td>${fmt(row.rentOut)}</td>
       <td><strong>${fmt(row.rentStock)}</strong></td>
       <td style="font-weight:700;color:${rateColor(rentRate)}">${fmtRate(rentRate)}</td>
       <td>${fmt(row.totalIn)}</td>
@@ -526,15 +565,15 @@ function renderHeader() {
 
 function renderHeaderSummary(rows) {
   if (!rows.length) return;
-  const today = rows[0];
-  const selfRate = (today.selfStock / (SIM.selfYard.capa || 1)) * 100;
-  const rentRate = (today.rentStock / (SIM.rentYard.capa || 1)) * 100;
+  const last = rows[0]; // 오늘 행
+  const selfRate = (last.selfStock / (SIM.selfYard.capa || 1)) * 100;
+  const rentRate = (last.rentStock / (SIM.rentYard.capa || 1)) * 100;
   document.getElementById('headerSummary').innerHTML = `
-    <span class="hs">자가야드 <strong>${fmt(today.selfStock)}</strong>t
+    <span class="hs">자가야드 <strong>${fmt(last.selfStock)}</strong>t
       <span style="color:${rateColor(selfRate)};font-weight:700;">${fmtRate(selfRate)}</span></span>
-    <span class="hs">임차야드 <strong>${fmt(today.rentStock)}</strong>t
+    <span class="hs">임차야드 <strong>${fmt(last.rentStock)}</strong>t
       <span style="color:${rateColor(rentRate)};font-weight:700;">${fmtRate(rentRate)}</span></span>
-    <span class="hs">총재고 <strong>${fmt(today.totalStock)}</strong>t</span>
+    <span class="hs">총재고 <strong>${fmt(last.totalStock)}</strong>t</span>
   `;
   if (SIM.lastFetched) {
     const d = new Date(SIM.lastFetched);
@@ -543,156 +582,54 @@ function renderHeaderSummary(rows) {
   }
 }
 
-function computeSimEditableNeighbor(dateKey, yard, cell, key) {
-  const { start, end } = simRange();
-  const dates = [];
-  for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
-    dates.push(dayKey(d));
-  }
-  const idx = dates.indexOf(dateKey);
-  if (idx < 0) return null;
-  const order = [
-    { yard: 'self', cell: 'in' },
-    { yard: 'self', cell: 'out' },
-    { yard: 'rent', cell: 'in' },
-    { yard: 'rent', cell: 'out' },
-  ];
-  const pos = order.findIndex(o => o.yard === yard && o.cell === cell);
-  if (pos < 0) return null;
-  if (key === 'ArrowDown' && idx < dates.length - 1) {
-    return { date: dates[idx + 1], yard, cell };
-  }
-  if (key === 'ArrowUp' && idx > 0) {
-    return { date: dates[idx - 1], yard, cell };
-  }
-  if (key === 'ArrowRight' && pos < order.length - 1) {
-    const { yard: y2, cell: c2 } = order[pos + 1];
-    return { date: dates[idx], yard: y2, cell: c2 };
-  }
-  if (key === 'ArrowLeft' && pos > 0) {
-    const { yard: y2, cell: c2 } = order[pos - 1];
-    return { date: dates[idx], yard: y2, cell: c2 };
-  }
-  return null;
-}
-
+/** 전체 재렌더 진입점 */
 function refresh() {
   const rows = runCalc();
   renderHeader();
   renderTable(rows);
   renderHeaderSummary(rows);
-  const wrap = document.getElementById('chartWrap');
-  if (!wrap.hidden) {
-    if (!stockChart) initChart(rows);
-    else updateChart(rows);
-  }
 }
+```
 
+- [ ] **Step 2: `</script>` 직전에 초기화 코드 추가**
+
+```js
 // ─────────────────────────────────────────
-//  CHART
+//  INIT
 // ─────────────────────────────────────────
-const CHART_Y_MAX_DEFAULT = 500000; // 50만 t — 재고 최대가 이보다 크면 축 상한을 그에 맞춤
+refresh();
+```
 
-function chartYMax(rows) {
-  if (!rows || !rows.length) return CHART_Y_MAX_DEFAULT;
-  const peak = Math.max(...rows.map(r => r.totalStock), 0);
-  return Math.max(CHART_Y_MAX_DEFAULT, peak);
-}
+- [ ] **Step 3: `/yard` 새로고침 — 60일치 테이블이 표시되고 적치율이 검정으로 렌더되는지 확인**
 
-let stockChart = null;
+---
 
-function toggleChart() {
-  const wrap = document.getElementById('chartWrap');
-  const btn  = document.getElementById('btnChart');
-  const hidden = wrap.hidden;
-  wrap.hidden = !hidden;
-  btn.textContent = hidden ? '📈 차트 닫기' : '📈 차트 보기';
-  if (hidden) {
-    const rows = runCalc();
-    if (!stockChart) {
-      initChart(rows);
-    } else {
-      updateChart(rows);
-    }
-  }
-}
+## Task 7: 상세 설정 모달
 
-function initChart(rows) {
-  if (!rows || !rows.length) return;
-  const labels = rows.map(r => {
-    const parts = r.date.split('-');
-    return `${Number(parts[1])}/${Number(parts[2])}`;
-  });
-  const data = rows.map(r => r.totalStock);
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
 
-  stockChart = new Chart(document.getElementById('stockChart'), {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: '총재고(t)',
-        data,
-        borderColor: '#2563eb',
-        backgroundColor: 'rgba(37,99,235,0.08)',
-        fill: true,
-        tension: 0.3,
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      }]
-    },
-    options: {
-      animation: false,
-      responsive: true,
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
-        tooltip: { mode: 'index', intersect: false }
-      },
-      scales: {
-        x: {
-          ticks: { font: { size: 10 }, maxTicksLimit: 15 }
-        },
-        y: {
-          min: 0,
-          max: chartYMax(rows),
-          ticks: {
-            font: { size: 10 },
-            callback: v => Math.round(v / 10000) + '만t'
-          }
-        }
-      }
-    }
-  });
-}
+- [ ] **Step 1: 탭 전환 + 일별 반출 테이블 생성 함수 추가**
 
-function updateChart(rows) {
-  if (!stockChart || !stockChart.data) return;
-  stockChart.data.datasets[0].data = rows.map(r => r.totalStock);
-  if (stockChart.options?.scales?.y) {
-    stockChart.options.scales.y.max = chartYMax(rows);
-  }
-  stockChart.update('none');
-}
-
+```js
 // ─────────────────────────────────────────
 //  SETTINGS MODAL
 // ─────────────────────────────────────────
 function switchTab(yard, mode, btn) {
-  document.getElementById(`${yard}-fixed`).classList.toggle('active', mode === 'fixed');
-  document.getElementById(`${yard}-daily`).classList.toggle('active', mode === 'daily');
+  const prefix = yard;
+  document.querySelectorAll(`#${prefix}-fixed, #${prefix}-daily`).forEach(el => el.classList.remove('active'));
+  document.getElementById(`${prefix}-${mode}`).classList.add('active');
   btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
 function updateFixedTotal(yard) {
-  const c = yard === 'self' ? 'Self' : 'Rent';
-  const t = Number(document.getElementById(`s${c}Transfer`).value) || 0;
-  const l = Number(document.getElementById(`s${c}Land`).value)     || 0;
-  const s = Number(document.getElementById(`s${c}Sea`).value)      || 0;
-  document.getElementById(`s${c}Total`).textContent = fmt(t + l + s);
+  const t = Number(document.getElementById(`s${cap(yard)}Transfer`).value) || 0;
+  const l = Number(document.getElementById(`s${cap(yard)}Land`).value)     || 0;
+  const s = Number(document.getElementById(`s${cap(yard)}Sea`).value)      || 0;
+  document.getElementById(`s${cap(yard)}Total`).textContent = fmt(t + l + s);
 }
-
-const DAILY_FIELDS = ['transfer', 'land', 'sea'];
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function buildDailyBody(yardKey, tbodyId) {
   const tbody = document.getElementById(tbodyId);
@@ -701,23 +638,14 @@ function buildDailyBody(yardKey, tbodyId) {
   const yardSetting = SIM[yardKey + 'Yard'];
   for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
     const k  = dayKey(d);
-    const od = (yardSetting.outDaily || {})[k] || {};
+    const od = yardSetting.outDaily[k] || {};
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${k}</td>
-      <td class="daily-input-cell"><span class="daily-cell-wrap">
-        <input class="daily-num-input" type="number" value="${od.transfer || 0}" data-dk="${k}" data-field="transfer" data-yard="${yardKey}" oninput="onDailyInput(this)">
-        <span class="daily-fill-handle" title="드래그하여 값 복사"></span>
-      </span></td>
-      <td class="daily-input-cell"><span class="daily-cell-wrap">
-        <input class="daily-num-input" type="number" value="${od.land || 0}" data-dk="${k}" data-field="land" data-yard="${yardKey}" oninput="onDailyInput(this)">
-        <span class="daily-fill-handle" title="드래그하여 값 복사"></span>
-      </span></td>
-      <td class="daily-input-cell"><span class="daily-cell-wrap">
-        <input class="daily-num-input" type="number" value="${od.sea || 0}" data-dk="${k}" data-field="sea" data-yard="${yardKey}" oninput="onDailyInput(this)">
-        <span class="daily-fill-handle" title="드래그하여 값 복사"></span>
-      </span></td>
-      <td>${fmt((od.transfer||0)+(od.land||0)+(od.sea||0))}</td>
+      <td><input type="number" value="${od.transfer || 0}" data-dk="${k}" data-field="transfer" data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td><input type="number" value="${od.land     || 0}" data-dk="${k}" data-field="land"     data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td><input type="number" value="${od.sea      || 0}" data-dk="${k}" data-field="sea"      data-yard="${yardKey}" oninput="onDailyInput(this)"></td>
+      <td class="daily-total-${k}-${yardKey}">${fmt((od.transfer||0)+(od.land||0)+(od.sea||0))}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -730,154 +658,9 @@ function onDailyInput(input) {
   SIM[yardKey].outDaily[dk][field] = Number(input.value) || 0;
   const d = SIM[yardKey].outDaily[dk];
   const total = (d.transfer||0) + (d.land||0) + (d.sea||0);
-  input.closest('tr').lastElementChild.textContent = fmt(total);
-  saveSimSettings(SIM);
+  const cell = input.closest('tr').lastElementChild;
+  cell.textContent = fmt(total);
 }
-
-function dailyFieldCol(field) {
-  const i = DAILY_FIELDS.indexOf(field);
-  return i >= 0 ? i : 0;
-}
-
-function focusDailyNeighbor(input, dRow, dCol) {
-  const tr = input.closest('tr');
-  const tbody = tr.closest('tbody');
-  if (!tbody || !tbody.classList.contains('daily-input-tbody')) return;
-  const rowIdx = Array.from(tbody.rows).indexOf(tr);
-  const colIdx = dailyFieldCol(input.dataset.field);
-  const newRow = rowIdx + dRow;
-  const newCol = colIdx + dCol;
-  const rows = tbody.rows;
-  if (newRow < 0 || newRow >= rows.length) return;
-  if (newCol < 0 || newCol >= DAILY_FIELDS.length) return;
-  const field = DAILY_FIELDS[newCol];
-  const next = rows[newRow].querySelector(`input.daily-num-input[data-field="${field}"]`);
-  if (next) {
-    next.focus();
-    next.select();
-  }
-}
-
-let dailyFillDrag = null;
-
-function dailyInputFromPoint(clientX, clientY) {
-  const stack = document.elementsFromPoint(clientX, clientY);
-  for (const el of stack) {
-    if (!el.closest?.('#settingsModal')) continue;
-    const inp = el.closest?.('input.daily-num-input');
-    if (inp && inp.dataset.dk) return inp;
-  }
-  return null;
-}
-
-function dailyRowCol(input) {
-  const tr = input.closest('tr');
-  const tbody = input.closest('tbody');
-  return {
-    row: Array.from(tbody.rows).indexOf(tr),
-    col: dailyFieldCol(input.dataset.field),
-    tbody,
-  };
-}
-
-function applyDailyFillRange(tbody, yard, r0, c0, r1, c1, value) {
-  const rMin = Math.min(r0, r1);
-  const rMax = Math.max(r0, r1);
-  const cMin = Math.min(c0, c1);
-  const cMax = Math.max(c0, c1);
-  const yardKey = yard + 'Yard';
-  const rows = tbody.rows;
-  const n = Number(value);
-  const num = Number.isFinite(n) ? n : 0;
-  const touchedRows = new Set();
-  for (let r = rMin; r <= rMax; r++) {
-    for (let c = cMin; c <= cMax; c++) {
-      const field = DAILY_FIELDS[c];
-      const inp = rows[r].querySelector(`input.daily-num-input[data-field="${field}"]`);
-      if (!inp || inp.dataset.yard !== yard) continue;
-      inp.value = num;
-      const dk = inp.dataset.dk;
-      if (!SIM[yardKey].outDaily[dk]) SIM[yardKey].outDaily[dk] = {};
-      SIM[yardKey].outDaily[dk][field] = num;
-      touchedRows.add(rows[r]);
-    }
-  }
-  touchedRows.forEach(tr => {
-    const first = tr.querySelector('input.daily-num-input');
-    if (!first) return;
-    const dk = first.dataset.dk;
-    const d = SIM[yardKey].outDaily[dk] || {};
-    tr.lastElementChild.textContent = fmt((d.transfer || 0) + (d.land || 0) + (d.sea || 0));
-  });
-  saveSimSettings(SIM);
-}
-
-function endDailyFillDrag() {
-  if (!dailyFillDrag) return;
-  document.body.classList.remove('daily-fill-dragging');
-  const { startInput, tbody, yard, value, lastEnd } = dailyFillDrag;
-  const endInput = lastEnd && lastEnd.closest('tbody') === tbody ? lastEnd : startInput;
-  const a = dailyRowCol(startInput);
-  const b = dailyRowCol(endInput);
-  if (a.tbody === tbody && b.tbody === tbody && a.row >= 0 && b.row >= 0) {
-    applyDailyFillRange(tbody, yard, a.row, a.col, b.row, b.col, value);
-  }
-  dailyFillDrag = null;
-  document.removeEventListener('mousemove', onDailyFillDragMove);
-  document.removeEventListener('mouseup', onDailyFillDragUp);
-}
-
-function onDailyFillDragMove(e) {
-  if (!dailyFillDrag) return;
-  const inp = dailyInputFromPoint(e.clientX, e.clientY);
-  if (inp && inp.closest('tbody') === dailyFillDrag.tbody && inp.dataset.yard === dailyFillDrag.yard) {
-    dailyFillDrag.lastEnd = inp;
-  }
-}
-
-function onDailyFillDragUp() {
-  endDailyFillDrag();
-}
-
-function startDailyFillDrag(startInput, e) {
-  if (dailyFillDrag) endDailyFillDrag();
-  e.preventDefault();
-  const tbody = startInput.closest('tbody');
-  const yard = startInput.dataset.yard;
-  const value = Number(startInput.value) || 0;
-  dailyFillDrag = { startInput, tbody, yard, value, lastEnd: startInput };
-  document.body.classList.add('daily-fill-dragging');
-  document.addEventListener('mousemove', onDailyFillDragMove);
-  document.addEventListener('mouseup', onDailyFillDragUp);
-}
-
-document.getElementById('settingsModal').addEventListener('mousedown', e => {
-  const handle = e.target.closest('.daily-fill-handle');
-  if (handle) {
-    const input = handle.closest('.daily-cell-wrap')?.querySelector('input.daily-num-input');
-    if (input) startDailyFillDrag(input, e);
-    return;
-  }
-  const input = e.target.closest('input.daily-num-input');
-  if (input && (e.ctrlKey || e.metaKey)) {
-    startDailyFillDrag(input, e);
-  }
-}, true);
-
-document.getElementById('settingsModal').addEventListener('keydown', e => {
-  const input = e.target.closest('input.daily-num-input');
-  if (!input) return;
-  const k = e.key;
-  if (k === 'Enter') {
-    e.preventDefault();
-    input.blur();
-    return;
-  }
-  if (k === 'ArrowUp')    { e.preventDefault(); focusDailyNeighbor(input, -1, 0); return; }
-  if (k === 'ArrowDown')  { e.preventDefault(); focusDailyNeighbor(input, 1, 0); return; }
-  if (k === 'ArrowLeft')  { e.preventDefault(); focusDailyNeighbor(input, 0, -1); return; }
-  if (k === 'ArrowRight') { e.preventDefault(); focusDailyNeighbor(input, 0, 1); return; }
-}, true);
 
 function openSettings() {
   const s = SIM;
@@ -897,14 +680,15 @@ function openSettings() {
 
   document.getElementById('sSilo').value = s.silo.currentStock;
 
+  // 일별 탭 빌드 (활성 모드 탭 선택 반영)
   buildDailyBody('self', 'selfDailyBody');
   buildDailyBody('rent', 'rentDailyBody');
 
-  // Restore active tab state
-  ['self', 'rent'].forEach(yard => {
+  // outMode에 따라 탭 활성화
+  ['self','rent'].forEach(yard => {
     const mode = SIM[yard + 'Yard'].outMode || 'fixed';
-    const block = document.getElementById(`${yard}-fixed`).closest('.yard-block');
-    block.querySelectorAll('.tab-btn').forEach(btn => {
+    const bar  = document.getElementById(`${yard}-fixed`).closest('.yard-block').querySelector('.tab-bar');
+    bar.querySelectorAll('.tab-btn').forEach(btn => {
       const isFixed = btn.textContent.includes('고정');
       btn.classList.toggle('active', (mode === 'fixed') === isFixed);
     });
@@ -920,23 +704,18 @@ function closeSettings() {
 }
 
 function saveSettings() {
-  const selfCapa = Number(document.getElementById('sSelfCapa').value);
-  SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
-
-  const selfInit = Number(document.getElementById('sSelfInit').value);
-  SIM.selfYard.initStock = isNaN(selfInit) ? 0 : selfInit;
+  SIM.selfYard.capa       = Number(document.getElementById('sSelfCapa').value)     || 248400;
+  SIM.selfYard.initStock  = Number(document.getElementById('sSelfInit').value)     || 0;
   SIM.selfYard.outFixed   = {
     transfer: Number(document.getElementById('sSelfTransfer').value) || 0,
     land:     Number(document.getElementById('sSelfLand').value)     || 0,
     sea:      Number(document.getElementById('sSelfSea').value)      || 0,
   };
+  // 활성 탭 = 현재 모드
   SIM.selfYard.outMode = document.getElementById('self-daily').classList.contains('active') ? 'daily' : 'fixed';
 
-  const rentCapa = Number(document.getElementById('sRentCapa').value);
-  SIM.rentYard.capa = rentCapa > 0 ? rentCapa : 172800;
-
-  const rentInit = Number(document.getElementById('sRentInit').value);
-  SIM.rentYard.initStock = isNaN(rentInit) ? 0 : rentInit;
+  SIM.rentYard.capa       = Number(document.getElementById('sRentCapa').value)     || 172800;
+  SIM.rentYard.initStock  = Number(document.getElementById('sRentInit').value)     || 0;
   SIM.rentYard.outFixed   = {
     transfer: Number(document.getElementById('sRentTransfer').value) || 0,
     land:     Number(document.getElementById('sRentLand').value)     || 0,
@@ -944,19 +723,33 @@ function saveSettings() {
   };
   SIM.rentYard.outMode = document.getElementById('rent-daily').classList.contains('active') ? 'daily' : 'fixed';
 
-  const siloStock = Number(document.getElementById('sSilo').value);
-  SIM.silo.currentStock = isNaN(siloStock) ? 0 : siloStock;
+  SIM.silo.currentStock = Number(document.getElementById('sSilo').value) || 0;
 
   saveSimSettings(SIM);
   closeSettings();
   refresh();
 }
+```
 
+- [ ] **Step 2: `/yard` 새로고침 → "상세 설정" 클릭 → 모달 열리고 탭 전환되는지 확인**
+- [ ] **Step 3: 자가야드 고정 반출값 변경 후 "저장·재계산" → 테이블 반출(t) 열이 변경되는지 확인**
+
+---
+
+## Task 8: 반입 데이터 불러오기 버튼
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 불러오기 + 확인 모달 함수 추가**
+
+```js
 // ─────────────────────────────────────────
 //  LOAD FROM berth7_v6
 // ─────────────────────────────────────────
 function handleLoad() {
-  const hasManual = Object.keys(SIM.manualInbound).length > 0 || Object.keys(SIM.manualOutbound || {}).length > 0;
+  // 수동 편집된 반입 값이 있으면 확인 모달 표시
+  const hasManual = Object.keys(SIM.manualInbound).length > 0;
   if (hasManual) {
     document.getElementById('confirmModal').classList.add('show');
   } else {
@@ -979,92 +772,81 @@ function doLoad() {
   saveSimSettings(SIM);
   refresh();
 }
+```
 
+- [ ] **Step 2: `/yard` 새로고침 → "반입 데이터 불러오기" 클릭**
+  - `berth7_v6`에 석탄 데이터 있으면: 반입(t) 열에 값이 채워짐
+  - 없으면: 반입(t) 열이 모두 0 (정상)
+- [ ] **Step 3: 반입 불러온 후 셀 하나 수동 편집(Task 9 완료 후 재확인) → 다시 불러오기 → 확인 모달 표시 확인**
+
+---
+
+## Task 9: 셀 인라인 편집
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 반입 셀 클릭 핸들러 추가**
+
+```js
 // ─────────────────────────────────────────
-//  INLINE CELL EDITING
+//  INLINE CELL EDITING (반입 셀)
 // ─────────────────────────────────────────
 document.getElementById('simBody').addEventListener('click', e => {
-  const td = e.target.closest('td[data-yard][data-cell]');
-  if (!td || td.querySelector('input')) return;
+  const td = e.target.closest('td[data-yard]');
+  if (!td || td.querySelector('input')) return; // 이미 편집 중
 
-  const yard = td.dataset.yard;
-  const date = td.dataset.date;
-  const cell = td.dataset.cell;
-  const yardKey = yard + 'Yard';
+  const yard = td.dataset.yard;   // 'self' | 'rent'
+  const date = td.dataset.date;   // 'YYYY-MM-DD'
+  const cur  = (SIM.manualInbound[date] || {})[yard];
 
-  let val;
-  if (cell === 'in') {
-    const cur = (SIM.manualInbound[date] || {})[yard];
-    const autoVal = (SIM.autoInbound[date] || {})[yard] || 0;
-    val = cur != null ? cur : autoVal;
-  } else if (cell === 'out') {
-    const cur = (SIM.manualOutbound[date] || {})[yard];
-    const autoVal = getOutboundForDay(SIM[yardKey], date);
-    val = cur != null ? cur : autoVal;
-  } else {
-    return;
-  }
+  // auto 값 계산
+  const autoVal = (SIM.autoInbound[date] || {})[yard] || 0;
+  const val = cur != null ? cur : autoVal;
 
   td.innerHTML = '';
   const input = document.createElement('input');
-  input.className = 'sim-cell-input';
-  input.setAttribute('type', 'text');
-  input.setAttribute('inputmode', 'decimal');
-  input.setAttribute('autocomplete', 'off');
-  input.setAttribute('spellcheck', 'false');
-  input.value = String(Math.round(val));
+  input.type  = 'number';
+  input.value = Math.round(val);
+  input.style.cssText = 'width:80px;text-align:right;padding:3px 5px;border:1px solid #3b82f6;border-radius:3px;font-size:12px;font-family:inherit;';
   td.appendChild(input);
   input.focus();
   input.select();
 
-  function parseCellNum(s) {
-    const n = Number(String(s).trim().replace(/,/g, ''));
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  let committed = false;
-  function applyCellValue() {
-    const newVal = parseCellNum(input.value);
-    if (cell === 'in') {
-      if (!SIM.manualInbound[date]) SIM.manualInbound[date] = {};
-      SIM.manualInbound[date][yard] = newVal;
-    } else {
-      if (!SIM.manualOutbound[date]) SIM.manualOutbound[date] = {};
-      SIM.manualOutbound[date][yard] = newVal;
-    }
-    saveSimSettings(SIM);
-  }
-
   function commit() {
-    if (committed) return;
-    committed = true;
-    applyCellValue();
-    refresh();
+    const newVal = Number(input.value);
+    if (!SIM.manualInbound[date]) SIM.manualInbound[date] = {};
+    SIM.manualInbound[date][yard] = newVal;
+    saveSimSettings(SIM);
+    refresh(); // 테이블 전체 재계산 후 파란 테두리 자동 적용
   }
 
-  input.addEventListener('blur', commit);
+  input.addEventListener('blur',  commit);
   input.addEventListener('keydown', ev => {
     if (ev.key === 'Enter')  { ev.preventDefault(); commit(); }
-    if (ev.key === 'Escape') { committed = true; refresh(); }
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) {
-      ev.preventDefault();
-      if (committed) return;
-      committed = true;
-      applyCellValue();
-      const nb = computeSimEditableNeighbor(date, yard, cell, ev.key);
-      refresh();
-      if (nb) {
-        requestAnimationFrame(() => {
-          const target = document.querySelector(
-            `td[data-date="${nb.date}"][data-yard="${nb.yard}"][data-cell="${nb.cell}"]`
-          );
-          if (target) target.click();
-        });
-      }
+    if (ev.key === 'Escape') {
+      saveSimSettings(SIM);
+      refresh(); // 원래 값으로 복구
     }
   });
 });
+```
 
+- [ ] **Step 2: `/yard` 새로고침 → 반입(t) 셀 클릭 → 숫자 입력 후 Enter**
+  - 파란 테두리(`.manual-edited`)가 해당 셀에 표시되는지 확인
+  - 재고, 적치율이 새 값으로 재계산되는지 확인
+- [ ] **Step 3: Escape 입력 시 편집이 취소되고 원래 값이 복구되는지 확인**
+
+---
+
+## Task 10: 오버레이 닫기 + 최종 마무리
+
+**Files:**
+- Modify: `yard.html` — `<script>` 블록에 추가
+
+- [ ] **Step 1: 모달 오버레이 클릭으로 닫기 추가**
+
+```js
 // ─────────────────────────────────────────
 //  MODAL CLOSE ON OVERLAY CLICK
 // ─────────────────────────────────────────
@@ -1074,11 +856,52 @@ document.getElementById('settingsModal').addEventListener('click', e => {
 document.getElementById('confirmModal').addEventListener('click', e => {
   if (e.target.id === 'confirmModal') closeConfirm();
 });
+```
 
-// ─────────────────────────────────────────
-//  INIT
-// ─────────────────────────────────────────
-refresh();
-</script>
-</body>
-</html>
+- [ ] **Step 2: `yard.html` 헤더 h1 텍스트에서 "(프로토타입)" 제거**
+
+  [yard.html:133](yard.html#L133) 의 `야드 시뮬레이션 (프로토타입)` → `야드 시뮬레이션`
+
+  *(이 변경은 Task 1에서 이미 새 skeleton을 쓰면 자동 반영됨)*
+
+- [ ] **Step 3: 전체 시나리오 최종 확인**
+  1. `/yard` 접속 → 60일치 빈 테이블 렌더됨
+  2. "상세 설정" → 자가야드 초기 재고 100,000 입력 → 저장 → 재고 반영됨
+  3. "반입 데이터 불러오기" → 석탄 반입 자동 채워짐, 헤더 업데이트 시간 표시됨
+  4. 반입 셀 클릭 → 수동 편집 → 파란 테두리 + 재계산 확인
+  5. 다시 "반입 데이터 불러오기" → 확인 모달 → 취소 시 값 유지, 불러오기 시 auto 값 갱신(수동값은 유지)
+  6. "상세 설정" → 일별 직접 입력 탭 → 값 입력 → 저장 → 반출(t) 열 반영 확인
+  7. 페이지 새로고침 → 모든 설정과 수동 편집값이 localStorage에서 복원됨
+
+- [ ] **Step 4: git commit**
+
+```bash
+git add yard.html
+git commit -m "feat: 야드 시뮬레이션 — 자가/임차 이중 야드, 반입 자동연동, 상세설정 모달"
+```
+
+---
+
+## 자체 검토 — 스펙 대비 커버리지
+
+| 스펙 요구사항 | 구현 Task |
+|---|---|
+| berth7_v6 석탄 반입 자동 fetch | Task 3, 8 |
+| start~end 비율 분산 반입 | Task 3 |
+| 기본 자가야드 반입, 임차야드 수동 설정 | Task 9 (셀 편집) |
+| 니켈 제외 | Task 3 필터 |
+| 자가야드/임차야드 테이블 칼럼 구조 | Task 1, 6 |
+| 반입/반출/재고/적치율 칼럼 | Task 6 |
+| 전체 반입/반출/총재고 칼럼 | Task 6 |
+| 적치율 색상 4단계 | Task 6 |
+| 셀 배경 흰색 | Task 1 CSS |
+| 수동 편집 셀 파란 테두리 | Task 6, 9 |
+| 반입 데이터 불러오기 버튼 | Task 8 |
+| 덮어쓰기 확인 모달 | Task 8 |
+| 상세 설정 모달 (용량/초기재고/반출) | Task 7 |
+| 고정 t/일 + 일별 입력 탭 | Task 7 |
+| Silo 참고 입력 (시뮬레이션 제외) | Task 7 |
+| yard_sim_v1 localStorage 저장 | Task 2, 7 |
+| 기본값 자가 248,400t / 임차 172,800t | Task 1 (DEFAULT_SETTINGS) |
+| 60일 시뮬레이션 기간 | Task 5 |
+| 페이지 새로고침 시 설정 복원 | Task 2 |

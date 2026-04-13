@@ -404,8 +404,10 @@ body {
         <label>화주</label>
         <div style="display:flex;gap:4px;">
           <input list="customerList" id="fCustomer" placeholder="선택 또는 직접 입력"
-                 oninput="onCustomerChange()" onblur="customerComboBlur(this)" style="flex:1;">
-          <button type="button" class="btn btn-gray" style="padding:6px 9px;font-size:12px;flex-shrink:0;" onclick="showComboList('fCustomer')">▼</button>
+                 oninput="onCustomerChange()" onblur="comboListBlur(this)" onfocusin="comboListFocusIn(this)"
+                 onmousedown="comboListInputMouseDown(this,event)" style="flex:1;">
+          <button type="button" class="btn btn-gray" style="padding:6px 9px;font-size:12px;flex-shrink:0;"
+                  onmousedown="event.preventDefault()" onclick="showComboList('fCustomer')">▼</button>
         </div>
         <datalist id="customerList">
           <option value="포스코">
@@ -418,12 +420,30 @@ body {
       </div>
       <div class="form-group full" id="originRow" style="display:none;">
         <label id="originLabel">원산지</label>
-        <input list="originList" id="fOrigin" placeholder="선택 또는 직접 입력">
+        <div style="display:flex;gap:4px;">
+          <input list="originList" id="fOrigin" placeholder="선택 또는 직접 입력"
+                 onblur="comboListBlur(this)" onfocusin="comboListFocusIn(this)"
+                 onmousedown="comboListInputMouseDown(this,event)" style="flex:1;">
+          <button type="button" class="btn btn-gray" style="padding:6px 9px;font-size:12px;flex-shrink:0;"
+                  onmousedown="event.preventDefault()" onclick="showComboList('fOrigin')">▼</button>
+        </div>
         <datalist id="originList"></datalist>
       </div>
       <div class="form-group full" id="brandRow" style="display:none;">
         <label>브랜드 (포스코)</label>
-        <input id="fBrand" placeholder="예: NSSMC, POSCO 등 직접 입력">
+        <div style="display:flex;gap:4px;">
+          <input list="brandList" id="fBrand" placeholder="예: NSSMC, POSCO 등 선택 또는 입력"
+                 onblur="comboListBlur(this)" onfocusin="comboListFocusIn(this)"
+                 onmousedown="comboListInputMouseDown(this,event)" style="flex:1;">
+          <button type="button" class="btn btn-gray" style="padding:6px 9px;font-size:12px;flex-shrink:0;"
+                  onmousedown="event.preventDefault()" onclick="showComboList('fBrand')">▼</button>
+        </div>
+        <datalist id="brandList">
+          <option value="NSSMC">
+          <option value="POSCO">
+          <option value="O.N">
+          <option value="Glencore">
+        </datalist>
       </div>
       <div class="form-group">
         <label>B/L량</label>
@@ -630,14 +650,59 @@ function textColor(hex) {
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
   return (r*.299 + g*.587 + b*.114) > 150 ? '#111' : '#fff';
 }
-// 화주 콤보박스: 클릭 시 목록 전체 표시 (값 임시 초기화 후 복원)
-function customerComboClick(el) {
+// datalist 콤보: 값을 잠시 비운 뒤 포커스 + ArrowDown으로 후보 패널 유도 (blur 시 복원)
+function showComboList(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  if (el._comboListOpening) return;
+  el._comboListOpening = true;
   el._savedVal = el.value;
   el.value = '';
+  el.focus();
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  requestAnimationFrame(() => {
+    try {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, bubbles: true }));
+    } finally {
+      el._comboListOpening = false;
+    }
+  });
 }
-function customerComboBlur(el) {
+function comboListFocusIn(el) {
+  if (el._comboListOpening) return;
+  if (!el._comboOpenAfterFocus) return;
+  el._comboOpenAfterFocus = false;
+  showComboList(el.id);
+}
+/** 첫 포커스: mousedown 후 focusin에서 열기 / 이미 포커스된 채 클릭: 드래그 선택이 아닐 때만 열기 */
+function comboListInputMouseDown(el, e) {
+  if (e.button !== 0) return;
+  if (document.activeElement !== el) {
+    el._comboOpenAfterFocus = true;
+    return;
+  }
+  const x0 = e.clientX, y0 = e.clientY;
+  const onMove = (ev) => {
+    if (Math.abs(ev.clientX - x0) > 5 || Math.abs(ev.clientY - y0) > 5) el._comboListDragCancel = true;
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (el._comboListDragCancel) {
+      el._comboListDragCancel = false;
+      return;
+    }
+    queueMicrotask(() => showComboList(el.id));
+  };
+  el._comboListDragCancel = false;
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+function comboListBlur(el) {
   if (el.value === '' && el._savedVal != null) el.value = el._savedVal;
   el._savedVal = null;
+  el._comboOpenAfterFocus = false;
+  if (el.id === 'fCustomer') onCustomerChange();
 }
 
 function updateColorPreview() {
@@ -944,6 +1009,9 @@ function renderStats(shouldScrollTimeline = true) {
   const coalCnt   = completedInMonth.filter(i => i.cargoType === '석탄').length;
   const nickelCnt = completedInMonth.filter(i => i.cargoType === '니켈').length;
   const totalBL   = completedInMonth.reduce((a, s) => a + (parseFloat(s.bl) || 0), 0);
+  const coalBL    = completedInMonth.filter(i => i.cargoType === '석탄').reduce((a, s) => a + (parseFloat(s.bl) || 0), 0);
+  const nickelBL  = completedInMonth.filter(i => i.cargoType === '니켈').reduce((a, s) => a + (parseFloat(s.bl) || 0), 0);
+  const fmtT = n => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
 
   // 안벽 점유율: 해당 월과 일정이 겹치는 선박의 월 내 점유 시간 합산
   const overlapShips = items.filter(i => {
@@ -969,7 +1037,8 @@ function renderStats(shouldScrollTimeline = true) {
     </div>
     <span class="stat-divider">/</span>
     <div class="stat">
-      총 반입량 <strong>${totalBL.toLocaleString('ko-KR', {maximumFractionDigits:0})}</strong><span class="stat-sub">톤</span>
+      총 반입량 <strong>${fmtT(totalBL)}</strong><span class="stat-sub">톤</span>
+      <span class="stat-sub">[석탄 ${fmtT(coalBL)}톤, 니켈 ${fmtT(nickelBL)}톤]</span>
     </div>
     <span class="stat-divider">/</span>
     <div class="stat">
@@ -1306,21 +1375,19 @@ document.addEventListener('mouseup', e => {
         end:   toDTLocal(new Date(newStart.getTime() + dur)),
       };
       items.push(copy);
-      if (copy.type === 'ship') normalizeShipSequence(copy.id);
     } else if (drag.type === 'move') {
       const newStart = xToDt(Math.max(0, mouseX - drag.mouseOffsetFromStart));
       const dur = parseDT(item.end) - parseDT(item.start);
       item.start = toDTLocal(newStart);
       item.end   = toDTLocal(new Date(newStart.getTime() + dur));
-      if (item.type === 'ship') normalizeShipSequence(item.id);
     } else {
       const newEnd = xToDt(Math.max(drag.startX + DAY_W/24, mouseX + drag.mouseOffsetFromEnd));
       const minEnd = new Date(parseDT(item.start).getTime() + SNAP_MS);
       item.end = toDTLocal(newEnd > minEnd ? newEnd : minEnd);
-      if (item.type === 'ship') normalizeShipSequence(item.id);
     }
     normalizeImportedShipSequenceWithGap(2);
     ensureNickelToCoalMaintCoverage();
+    resolveBerthNonOverlap();
     drag = null; save(); render();
   } else {
     drag = null;
@@ -1529,34 +1596,84 @@ function ensureNickelToCoalMaintCoverage() {
   });
 }
 
-// 단일 선석 규칙: 앞쪽 선박은 그대로 두고, 뒤쪽 선박만 순차적으로 밀어 겹침 제거
-function normalizeShipSequence(anchorId) {
-  const ships = items
-    .filter(i => i.type === 'ship' && parseDT(i.start) && parseDT(i.end))
-    .sort((a, b) => parseDT(a.start) - parseDT(b.start));
-  if (ships.length <= 1) return;
-
-  let anchorIdx = ships.findIndex(s => s.id === anchorId);
-  if (anchorIdx < 0) anchorIdx = 0;
-
-  if (anchorIdx > 0) {
-    const prevEnd = parseDT(ships[anchorIdx - 1].end);
-    const anchorStart = parseDT(ships[anchorIdx].start);
-    if (anchorStart < prevEnd) {
-      const dur = parseDT(ships[anchorIdx].end) - anchorStart;
-      ships[anchorIdx].start = toDTLocal(prevEnd);
-      ships[anchorIdx].end = toDTLocal(new Date(prevEnd.getTime() + dur));
+// 고정 구간(겹침 병합) — 정비·첫 선박 등
+function _mergeIntervalsMs(intervals) {
+  if (!intervals.length) return [];
+  const a = [...intervals].sort((x, y) => x[0] - y[0]);
+  const out = [[a[0][0], a[0][1]]];
+  for (let i = 1; i < a.length; i++) {
+    const s = a[i][0], e = a[i][1];
+    const last = out[out.length - 1];
+    if (s <= last[1]) last[1] = Math.max(last[1], e);
+    else out.push([s, e]);
+  }
+  return out.map(([start, end]) => ({ start, end }));
+}
+function _advancePastFrozenMs(sMs, durMs, frozenMerged) {
+  let s = sMs;
+  for (let guard = 0; guard < 2000; guard++) {
+    let hit = null;
+    for (const f of frozenMerged) {
+      if (s + durMs <= f.start || s >= f.end) continue;
+      hit = f;
+      break;
     }
+    if (!hit) return s;
+    s = hit.end;
+  }
+  return s;
+}
+/**
+ * 단일 선석: 선박·장비청소·정비가 시간으로 겹치지 않도록 순연 (시작이 앞선 일정 우선).
+ * @param {object} [opts]
+ * @param {boolean} [opts.freezeJeonbi] true면 정비(type=jeonbi) 구간은 움직이지 않음(재정렬 시).
+ * @param {Set<string>} [opts.frozenIds] 추가로 고정할 항목 id (재정렬 시 첫 선박 등).
+ */
+function resolveBerthNonOverlap(opts = {}) {
+  const freezeJeonbi = !!opts.freezeJeonbi;
+  const frozenIds = opts.frozenIds instanceof Set ? opts.frozenIds : new Set();
+
+  const blocks = items.filter(i =>
+    (i.type === 'ship' || i.type === 'maint' || i.type === 'jeonbi') &&
+    parseDT(i.start) && parseDT(i.end) && parseDT(i.end) > parseDT(i.start)
+  );
+  if (blocks.length === 0) return;
+
+  blocks.sort((a, b) => {
+    const ds = parseDT(a.start) - parseDT(b.start);
+    if (ds !== 0) return ds;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  if (!freezeJeonbi && frozenIds.size === 0) {
+    let cursor = 0;
+    for (const it of blocks) {
+      const dur = parseDT(it.end) - parseDT(it.start);
+      let s = Math.max(parseDT(it.start).getTime(), cursor);
+      it.start = toDTLocal(new Date(s));
+      it.end = toDTLocal(new Date(s + dur));
+      cursor = s + dur;
+    }
+    return;
   }
 
-  for (let i = anchorIdx + 1; i < ships.length; i++) {
-    const prevEnd = parseDT(ships[i - 1].end);
-    const curStart = parseDT(ships[i].start);
-    if (curStart < prevEnd) {
-      const dur = parseDT(ships[i].end) - curStart;
-      ships[i].start = toDTLocal(prevEnd);
-      ships[i].end = toDTLocal(new Date(prevEnd.getTime() + dur));
+  const frozenIntervals = [];
+  for (const it of blocks) {
+    if ((it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id)) {
+      frozenIntervals.push([parseDT(it.start).getTime(), parseDT(it.end).getTime()]);
     }
+  }
+  const frozenMerged = _mergeIntervalsMs(frozenIntervals);
+
+  const movable = blocks.filter(it => !((it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id)));
+  let cursor = 0;
+  for (const it of movable) {
+    const dur = parseDT(it.end) - parseDT(it.start);
+    let s = Math.max(parseDT(it.start).getTime(), cursor);
+    s = _advancePastFrozenMs(s, dur, frozenMerged);
+    it.start = toDTLocal(new Date(s));
+    it.end = toDTLocal(new Date(s + dur));
+    cursor = s + dur;
   }
 }
 
@@ -1624,7 +1741,15 @@ function compactShipSchedule() {
     prevEnd = newEnd;
   }
 
+  const shipsSorted = items
+    .filter(i => i.type === 'ship' && parseDT(i.start) && parseDT(i.end))
+    .sort((a, b) => parseDT(a.start) - parseDT(b.start));
+  const firstShipId = shipsSorted.length ? shipsSorted[0].id : null;
   ensureNickelToCoalMaintCoverage();
+  resolveBerthNonOverlap({
+    freezeJeonbi: true,
+    frozenIds: firstShipId ? new Set([firstShipId]) : new Set(),
+  });
   save();
   render();
 }
@@ -1664,9 +1789,9 @@ function saveShip() {
     autoAddMaintBeforeCoal(start);
   }
 
-  normalizeShipSequence(newId);
   normalizeImportedShipSequenceWithGap(2);
   ensureNickelToCoalMaintCoverage();
+  resolveBerthNonOverlap();
 
   save(); closeShipModal(); render();
 }
@@ -1714,6 +1839,7 @@ function saveMaint() {
   } else {
     items.push({ id: Date.now().toString(), type:'maint', name:'장비청소', start, end });
   }
+  resolveBerthNonOverlap();
   save(); closeMaintModal(); render();
 }
 function deleteMaint() {
@@ -1766,6 +1892,7 @@ function saveJeonbi() {
   pushUndo();
   if (jeonbiEditId) { items[items.findIndex(x => x.id === jeonbiEditId)] = entry; }
   else              { items.push(entry); }
+  resolveBerthNonOverlap();
   save(); closeJeonbiModal(); render();
 }
 function deleteJeonbi() {
@@ -2096,6 +2223,7 @@ async function importFromExcel() {
   if (added === 0 && updated === 0) { alert('새로 추가/수정된 항목이 없습니다.\n(필수 항목 누락 또는 동일 데이터)'); return; }
   normalizeImportedShipSequenceWithGap(2);
   ensureNickelToCoalMaintCoverage();
+  resolveBerthNonOverlap();
   save(); render(); closeExcelModal();
   alert(`${added}건 추가, ${updated}건 수정${skipped ? ` (${skipped}건 건너뜀)` : ''}`);
 }

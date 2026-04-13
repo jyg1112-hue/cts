@@ -18,16 +18,24 @@ def _metadata_match(meta: dict[str, Any], filt: dict[str, Any] | None) -> bool:
     for k, v in filt.items():
         if v is None:
             continue
-        if k == "cargo_type" and str(meta.get("cargo_type")) != str(v):
+        if k == "year":
+            meta_year = meta.get("year")
+            if meta_year is None:
+                continue  # year 없는 문서는 필터 통과 (제거하지 않음)
+            if int(meta_year) != int(v):
+                return False
+        elif k == "month":
+            try:
+                if int(meta.get("month") or -1) != int(float(v)):  # float 변환 후 int
+                    return False
+            except (ValueError, TypeError):
+                return False
+        elif k == "cargo_type" and str(meta.get("cargo_type")) != str(v):
             return False
-        if k == "month" and int(meta.get("month") or -1) != int(v):
-            return False
-        if k == "year" and int(meta.get("year") or -1) != int(v):
-            return False
-        if k == "ship_name":
+        elif k == "ship_name":
             if v and str(v).lower() not in str(meta.get("ship_name") or "").lower():
                 return False
-        if k == "품종" and v:
+        elif k == "품종" and v:
             if str(v).lower() not in str(meta.get("품종") or "").lower():
                 return False
     return True

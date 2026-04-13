@@ -23,12 +23,13 @@ ROUTING_PROMPT = """
 
 경로 query_type 분류 기준:
 - "sql": 수치 조회, 집계, 순위, 날짜 기반 쿼리
-  예) "3월 평균 하역률", "하역량이 가장 많은 선박", "1월~3월 석탄 총 하역량", "하역률 상위 5개 선박"
+  예) "3월 평균 하역률", "하역량이 가장 많은 선박", "1월~3월 석탄 총 하역량", "하역률 상위 5개 선박",
+      "2025년 니켈에서 하역률이 가장 낮은 품종", "연도별 니켈 품종별 평균 하역률 순위", "석탄 품종 중 최저 하역률"
 
 - "rag": 이슈 내용, 원인 분석, 정비 내역, 화물 상태 쿼리
   예) "CSU2호 관련 정비 이슈", "수분이 높은 화물로 인한 문제", "철편검출이 많았던 사례", "돌발정비 발생 경위"
 
-- "hybrid": 수치 + 이슈/원인을 함께 요구하는 쿼리
+- "hybrid": 수치와 이슈/원인 설명을 동시에 요구하는 쿼리(순위·집계만 묻는 경우는 sql)
   예) "하역률이 낮았던 선박의 원인", "3월에 돌발정비가 발생한 선박의 하역률", "기상불량으로 지연된 선박의 실적"
 
 필터 (언급이 없으면 반드시 null):
@@ -43,6 +44,25 @@ ROUTING_PROMPT = """
 
 질문:
 """
+
+SQL_KEYWORDS = [
+    "평균",
+    "합계",
+    "총",
+    "최대",
+    "최소",
+    "최고",
+    "최저",
+    "가장",
+    "몇 척",
+    "순위",
+    "상위",
+    "하위",
+    "얼마",
+    "품종별",
+    "광종",
+]
+RAG_KEYWORDS = ["이슈", "원인", "정비", "트러블", "지연 사유", "왜", "사례", "비고"]
 
 
 class ChatState(TypedDict, total=False):
@@ -66,6 +86,12 @@ def _classify(state: ChatState) -> ChatState:
         raw = str(data.get("query_type") or "rag").lower()
         if raw in ("sql", "rag", "hybrid"):
             qt = raw  # type: ignore[assignment]
+    else:
+        # LLM 실패 시 키워드 기반 fallback
+        if any(k in q for k in SQL_KEYWORDS):
+            qt = "sql"
+        elif any(k in q for k in RAG_KEYWORDS):
+            qt = "rag"
     filt: dict[str, Any] = {}
     if data:
         for key in ("month", "year", "ship_name", "cargo_type", "품종"):
@@ -89,6 +115,8 @@ def _rag_node(state: ChatState, retriever: HybridRetriever, reranker: Reranker) 
     docs = retriever.retrieve(q, top_k=12, filter_metadata=flt)
     docs = reranker.rerank(q, docs, top_k=5)
     ans = run_rag_chain(q, docs)
+    if not docs:
+        ans = "검색 결과가 없습니다. 질문을 바꿔서 다시 시도해보세요."
     return {"rag_result": ans, "final_answer": ans}
 
 

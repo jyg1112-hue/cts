@@ -454,6 +454,28 @@ function textColor(hex) {
   return (r*.299 + g*.587 + b*.114) > 150 ? '#111' : '#fff';
 }
 
+/** 라인(CW1/CW2/Silo)별로 일정이 겹치지 않게 시작이 앞선 순으로 순연 */
+function resolveBanchuNonOverlap() {
+  for (const cat of CATEGORIES) {
+    const rowItems = items.filter(it =>
+      it.cat === cat && parseDT(it.start) && parseDT(it.end) && parseDT(it.end) > parseDT(it.start)
+    );
+    rowItems.sort((a, b) => {
+      const ds = parseDT(a.start) - parseDT(b.start);
+      if (ds !== 0) return ds;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    let cursor = 0;
+    for (const it of rowItems) {
+      const dur = parseDT(it.end) - parseDT(it.start);
+      let s = Math.max(parseDT(it.start).getTime(), cursor);
+      it.start = toDTLocal(new Date(s));
+      it.end = toDTLocal(new Date(s + dur));
+      cursor = s + dur;
+    }
+  }
+}
+
 // ══════════════════════════════════════════
 //  NAVIGATION
 // ══════════════════════════════════════════
@@ -925,6 +947,7 @@ document.addEventListener('mouseup', e => {
       const minEnd = new Date(parseDT(item.start).getTime() + SNAP_MS);
       item.end = toDTLocal(newEnd > minEnd ? newEnd : minEnd);
     }
+    resolveBanchuNonOverlap();
     drag = null; save(); render();
   } else {
     drag = null;
@@ -994,6 +1017,7 @@ function saveCargo() {
   pushUndo();
   if (editId) { items[items.findIndex(x => x.id === editId)] = entry; }
   else        { items.push(entry); }
+  resolveBanchuNonOverlap();
   save(); closeCargoModal(); render();
 }
 function deleteItem() {
@@ -1248,6 +1272,7 @@ function importFromForm() {
     pushUndo();
     target.cat = line;
     target.name = newName;
+    resolveBanchuNonOverlap();
     save();
     closeImportModal();
     render();
@@ -1326,6 +1351,7 @@ function importFromForm() {
   if (added === 0) { alert('유효한 행이 없습니다. 열 순서와 라인 선택을 확인하세요.'); return; }
   pushUndo();
   newItems.forEach(it => items.push(it));
+  resolveBanchuNonOverlap();
   save();
   closeImportModal();
   render();

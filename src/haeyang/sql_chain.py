@@ -24,6 +24,9 @@ SQL_SYSTEM_PROMPT = """
 5. 한글 컬럼명은 큰따옴표로 감싼다: "하역률", "선박명", "하역량_톤", "raw_비고" 등.
 6. 이슈 여부는 has_emergency_maintenance, has_cargo_issue, has_weather_delay 컬럼(0/1)으로 필터링.
 7. total_delay_hours: 해당 항차의 총 지연 시간 합계(시간 단위).
+8. 니켈/석탄의 품종·광종별 하역률 순위·최저·최고·평균은 해당 테이블(nickel_records 또는 coal_records)에서
+   year(및 필요 시 월) 조건 후 GROUP BY "품종", round(avg("하역률"),1) 등으로 집계한다.
+   예: 연도·니켈만 주어지면 nickel_records WHERE year = ? … GROUP BY "품종" ORDER BY avg("하역률") ASC LIMIT 1
 
 응답은 JSON만: {"sql": "SELECT ...", "explanation_hint": "한 줄 요약"}
 """
