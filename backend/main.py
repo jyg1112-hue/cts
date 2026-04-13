@@ -11,14 +11,16 @@ import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 _SRC = BASE_DIR / "src"
@@ -26,6 +28,7 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 load_dotenv(BASE_DIR / ".env")
 
+from backend import platform_auth as pa
 from backend.supply_news import get_supply_news_payload
 INDEX_HTML = BASE_DIR / "index.html"
 SCHEDULE_HTML = BASE_DIR / "schedule.html"
@@ -41,6 +44,40 @@ UNLOADING_COAL_SHEET = "석탄(년)"
 UNLOADING_NICKEL_SHEET = "니켈(년)"
 
 app = FastAPI(title="0327_2 Web App", version="1.0.0")
+
+
+class PlatformApiAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/"):
+            if path == "/api/health":
+                return await call_next(request)
+            if path == "/api/auth/me" and request.method == "GET":
+                return await call_next(request)
+            if path == "/api/auth/login" and request.method == "POST":
+                return await call_next(request)
+            if path == "/api/unloading-data/meta" and request.method == "GET":
+                return await call_next(request)
+            if path == "/api/unloading-data/summary" and request.method == "GET":
+                return await call_next(request)
+            if path == "/api/unloading-data/chat" and request.method == "POST":
+                return await call_next(request)
+            u = request.session.get("user")
+            if not u or not isinstance(u, str) or not str(u).strip():
+                return JSONResponse({"detail": "로그인이 필요합니다."}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(PlatformApiAuthMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=pa.session_secret(),
+    session_cookie="platform_session",
+    same_site="lax",
+    https_only=False,
+    max_age=86400 * 7,
+)
+
 NO_CACHE_HTML_PATHS = {
     "/",
     "/index.html",
@@ -602,7 +639,12 @@ def _build_dashboard_chat_context(
     return json.dumps(context, ensure_ascii=False)
 
 
-def _chat_completion_with_openai(question: str, context_json: str, history: list[dict[str, str]] | None = None) -> Optional[str]:
+def _chat_completion_with_openai(
+    question: str,
+    context_json: str,
+    history: list[dict[str, str]] | None = None,
+    force_hybrid_style: bool = False,
+) -> Optional[str]:
     api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
         return None
@@ -611,6 +653,16 @@ def _chat_completion_with_openai(question: str, context_json: str, history: list
         '{"found": true|false, "answer": "한국어 답변", "evidence": ["근거1", "근거2"]}\n\n'
         f"질문: {question}"
     )
+    hybrid_style_rules = ""
+    if force_hybrid_style:
+        hybrid_style_rules = (
+            "\n"
+            "## 하이브리드 응답 스타일(강제)\n"
+            "9. bySpecies, byVessel, totalBL, avgRate, count, entry 같은 내부 키워드는 답변/근거에 노출하지 않는다.\n"
+            "10. 질문이 니켈 품종 결과를 요구하면 품종명 + 물량(톤)만 노출한다. 평균/건수/내부 키는 생략한다.\n"
+            "11. 근거(evidence)도 자연어로만 작성하고 내부 키명은 포함하지 않는다.\n"
+        )
+
     messages: list[dict[str, str]] = [
         {
             "role": "system",
@@ -629,6 +681,7 @@ def _chat_completion_with_openai(question: str, context_json: str, history: list
                 "6. 답변은 간결하게 1~3문장으로 한다.\n"
                 "7. DB(업로드 데이터)에 없는 사실, 외부 지식, 일반 상식으로 내용을 보충하지 않는다.\n"
                 "8. 질문이 애매하면 의도를 확인하는 한 문장을 answer에 넣고 found=false로 반환한다."
+                f"{hybrid_style_rules}"
             ),
         },
     ]
@@ -641,11 +694,10 @@ def _chat_completion_with_openai(question: str, context_json: str, history: list
 
     body = json.dumps(
         {
-            "model": "gpt-4.1-mini",
+            "model": "gpt-5-mini",
             "messages": messages,
             "response_format": {"type": "json_object"},
-            "temperature": 0.1,
-            "max_tokens": 500,
+            "max_completion_tokens": 2000,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -736,6 +788,66 @@ def _is_ambiguous_chat_question(question: str) -> bool:
     if re.fullmatch(r"[\W_0-9]+", stripped):
         return True
     return False
+
+
+def _should_force_hybrid_question(question: str) -> bool:
+    """
+    이슈 조건 + 수치/집계를 함께 묻는 질문은 rule-based를 건너뛰고
+    하이브리드 체인(SQL+RAG)으로 우선 라우팅한다.
+    """
+    q = _normalize_text(question).lower()
+    if not q:
+        return False
+
+    issue_keywords = (
+        "수분",
+        "점성",
+        "대형괴광",
+        "죽광",
+        "철편",
+        "돌발정비",
+        "기상불량",
+        "우천",
+        "한파",
+        "snnc",
+        "트러블",
+        "지연",
+        "이슈",
+        "문제",
+    )
+    metric_keywords = (
+        "평균",
+        "합계",
+        "총",
+        "최대",
+        "최소",
+        "최고",
+        "최저",
+        "상위",
+        "하위",
+        "순위",
+        "몇",
+        "얼마",
+        "하역률",
+        "소요일",
+        "지연시간",
+        "실적",
+        "건수",
+    )
+    list_only_tokens = ("목록", "리스트", "품종은", "선박은", "어떤 선박", "어느 선박", "어떤 품종", "어느 품종")
+    detail_only_tokens = ("원인", "이유", "왜", "사례", "정리", "설명", "경위", "자세히", "상세")
+
+    has_issue = any(k in q for k in issue_keywords)
+    has_metric = any(k in q for k in metric_keywords)
+    if not (has_issue and has_metric):
+        return False
+
+    # 목록형/상세원인형은 각각 SQL/RAG로 보내는 기존 정책 유지
+    if any(t in q for t in list_only_tokens):
+        return False
+    if any(t in q for t in detail_only_tokens) and not any(t in q for t in ("평균", "합계", "총", "순위", "하역률", "소요일", "지연시간")):
+        return False
+    return True
 
 
 def _infer_scope_from_question(question: str) -> tuple[Optional[str], Optional[int]]:
@@ -1311,7 +1423,16 @@ def _build_rule_based_chat_answer(
     if any(t in q for t in ("총 척수", "척수", "선박 수", "vessel")):
         v = int(round(float(k.get("total_vessels", 0) or 0)))
         return f"{scope_label} 총 척수는 {v:,} 척 입니다."
-    if any(t in q for t in ("이슈", "장애", "트러블", "건수")):
+    issue_count_signals = (
+        "이슈 건수",
+        "장애 건수",
+        "트러블 건수",
+        "총 건수",
+        "몇 건",
+        "몇건",
+        "건수",
+    )
+    if any(sig in q for sig in issue_count_signals):
         v = int(round(float(k.get("issue_count", 0) or 0)))
         return f"{scope_label} 이슈 건수는 {v:,} 건 입니다."
     if _is_brand_rank_question(question) and brand_table:
@@ -1361,6 +1482,35 @@ def debug_startup_trace() -> None:
     # endregion
 
 
+def _session_user(request: Request) -> Optional[str]:
+    u = request.session.get("user")
+    if isinstance(u, str) and u.strip():
+        return u.strip()
+    return None
+
+
+def _require_logged_in(request: Request) -> str:
+    u = _session_user(request)
+    if not u:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    return u
+
+
+def _require_platform_admin(request: Request) -> str:
+    u = _require_logged_in(request)
+    if u != pa.platform_admin_username():
+        raise HTTPException(status_code=403, detail="플랫폼 관리자만 사용할 수 있습니다.")
+    return u
+
+
+def _require_html_user_or_redirect(request: Request) -> Optional[RedirectResponse]:
+    u = _session_user(request)
+    if u:
+        pa.audit_write(request, u, "page_view", request.url.path)
+        return None
+    return RedirectResponse(url="/", status_code=302)
+
+
 @app.middleware("http")
 async def debug_request_trace(request: Request, call_next) -> Response:
     # region agent log
@@ -1390,6 +1540,94 @@ async def debug_request_trace(request: Request, call_next) -> Response:
 @app.get("/api/health")
 def health_check() -> JSONResponse:
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request) -> JSONResponse:
+    body = await request.json()
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if pa.verify_user_credentials(username, password):
+        request.session["user"] = username
+        pa.audit_write(request, username, "login_ok", "")
+        return JSONResponse(
+            {
+                "ok": True,
+                "username": username,
+                "is_platform_admin": username == pa.platform_admin_username(),
+            }
+        )
+    pa.audit_write(request, None, "login_fail", username[:120] if username else "")
+    raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request) -> JSONResponse:
+    u = _session_user(request)
+    request.session.clear()
+    if u:
+        pa.audit_write(request, u, "logout", "")
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request) -> JSONResponse:
+    u = _session_user(request)
+    admin_un = pa.platform_admin_username()
+    return JSONResponse(
+        {
+            "username": u,
+            "is_platform_admin": u == admin_un,
+            "platform_admin_username": admin_un,
+        }
+    )
+
+
+@app.get("/api/auth/users")
+def auth_users_list(request: Request) -> JSONResponse:
+    _require_platform_admin(request)
+    pa.require_admin_header(request)
+    return JSONResponse({"users": pa.list_usernames()})
+
+
+@app.post("/api/auth/users")
+async def auth_users_create(request: Request) -> JSONResponse:
+    actor = _require_platform_admin(request)
+    pa.require_admin_header(request)
+    body = await request.json()
+    un = str(body.get("username") or "").strip()
+    pw = str(body.get("password") or "")
+    pa.add_user(un, pw)
+    pa.audit_write(request, actor, "admin_user_create", un)
+    return JSONResponse({"ok": True})
+
+
+@app.patch("/api/auth/users/{username}")
+async def auth_users_patch_password(request: Request, username: str) -> JSONResponse:
+    actor = _require_platform_admin(request)
+    pa.require_admin_header(request)
+    body = await request.json()
+    pw = str(body.get("password") or "")
+    pa.set_user_password(username, pw)
+    pa.audit_write(request, actor, "admin_user_password_change", username)
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/auth/users/{username}")
+def auth_users_delete(request: Request, username: str) -> JSONResponse:
+    actor = _require_platform_admin(request)
+    pa.require_admin_header(request)
+    pa.delete_user(username)
+    pa.audit_write(request, actor, "admin_user_delete", username)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/auth/audit")
+def auth_audit(request: Request, limit: int = 300) -> JSONResponse:
+    _require_platform_admin(request)
+    pa.require_admin_header(request)
+    lim = max(1, min(limit, 2000))
+    return JSONResponse({"entries": pa.read_audit_tail(lim)})
 
 
 @app.get("/api/supply-news")
@@ -1428,7 +1666,8 @@ def unloading_data_meta() -> JSONResponse:
 
 
 @app.post("/api/unloading-data/upload")
-async def upload_unloading_excel(file: UploadFile = File(...)) -> JSONResponse:
+async def upload_unloading_excel(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    u = _session_user(request)
     _ensure_upload_dir()
     original_name = (file.filename or "").strip()
     if not original_name:
@@ -1450,6 +1689,9 @@ async def upload_unloading_excel(file: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
     target_path.write_bytes(content)
 
+    if u:
+        pa.audit_write(request, u, "api_unloading_upload", target_name)
+
     return JSONResponse(
         {
             "message": "업로드 완료",
@@ -1461,7 +1703,7 @@ async def upload_unloading_excel(file: UploadFile = File(...)) -> JSONResponse:
 
 
 @app.delete("/api/unloading-data/upload/{file_name}")
-def delete_uploaded_unloading_excel(file_name: str) -> JSONResponse:
+def delete_uploaded_unloading_excel(request: Request, file_name: str) -> JSONResponse:
     _ensure_upload_dir()
     if not UPLOAD_NAME_PATTERN.match(file_name):
         raise HTTPException(status_code=400, detail="허용되지 않은 파일명입니다.")
@@ -1470,6 +1712,10 @@ def delete_uploaded_unloading_excel(file_name: str) -> JSONResponse:
     if not target_path.exists() or not target_path.is_file():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     target_path.unlink()
+
+    u = _session_user(request)
+    if u:
+        pa.audit_write(request, u, "api_unloading_delete", file_name)
 
     return JSONResponse(
         {
@@ -1503,6 +1749,9 @@ async def unloading_data_chat(request: Request) -> JSONResponse:
     history_raw = payload.get("history")
     if not question:
         raise HTTPException(status_code=400, detail="질문(question)이 필요합니다.")
+    u_chat = _session_user(request)
+    if u_chat:
+        pa.audit_write(request, u_chat, "api_unloading_chat", question[:500])
     if _is_ambiguous_chat_question(question):
         return JSONResponse(
             {
@@ -1520,9 +1769,11 @@ async def unloading_data_chat(request: Request) -> JSONResponse:
     history = _normalize_chat_history(history_raw)
     parsed_query = _parse_query(question, rows)
     merged_query = _merge_query_with_history(parsed_query, history, rows)
-    rule_based_answer = _build_rule_based_chat_answer(question, rows, history=history, parsed_filters=merged_query)
-    if rule_based_answer:
-        return JSONResponse({"answer": _format_numbers_with_commas(rule_based_answer), "summary": {}})
+    force_hybrid = _should_force_hybrid_question(question)
+    if not force_hybrid:
+        rule_based_answer = _build_rule_based_chat_answer(question, rows, history=history, parsed_filters=merged_query)
+        if rule_based_answer:
+            return JSONResponse({"answer": _format_numbers_with_commas(rule_based_answer), "summary": {}})
 
     try:
         from haeyang.chatbot import enhanced_chat_answer
@@ -1538,7 +1789,7 @@ async def unloading_data_chat(request: Request) -> JSONResponse:
     summary = _aggregate_summary(rows)
     dynamic_summary = _compute_dynamic_chat_summary(rows, merged_query)
     context_json = json.dumps(dynamic_summary, ensure_ascii=False)
-    answer = _chat_completion_with_openai(question, context_json, history=history)
+    answer = _chat_completion_with_openai(question, context_json, history=history, force_hybrid_style=force_hybrid)
     if not answer:
         answer = (
             "요청하신 내용을 업로드된 데이터에서 명확히 찾지 못했습니다. "
@@ -1557,17 +1808,20 @@ def serve_index() -> FileResponse:
     return FileResponse(INDEX_HTML)
 
 
-@app.get("/schedule")
-@app.get("/schedule.html")
-def serve_schedule() -> FileResponse:
+@app.get("/schedule", response_model=None)
+@app.get("/schedule.html", response_model=None)
+def serve_schedule(request: Request) -> Union[FileResponse, RedirectResponse]:
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not SCHEDULE_HTML.exists():
         raise HTTPException(status_code=404, detail="schedule.html not found")
     return FileResponse(SCHEDULE_HTML)
 
 
-@app.get("/banchu")
-@app.get("/banchu.html")
-def serve_banchu() -> FileResponse:
+@app.get("/banchu", response_model=None)
+@app.get("/banchu.html", response_model=None)
+def serve_banchu(request: Request) -> Union[FileResponse, RedirectResponse]:
     # region agent log
     _debug_log(
         "H3",
@@ -1576,38 +1830,53 @@ def serve_banchu() -> FileResponse:
         {"banchu_exists": BANCHU_HTML.exists(), "banchu_path": str(BANCHU_HTML)},
     )
     # endregion
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not BANCHU_HTML.exists():
         raise HTTPException(status_code=404, detail="banchu.html not found")
     return FileResponse(BANCHU_HTML)
 
 
-@app.get("/yard")
-@app.get("/yard.html")
-def serve_yard() -> FileResponse:
+@app.get("/yard", response_model=None)
+@app.get("/yard.html", response_model=None)
+def serve_yard(request: Request) -> Union[FileResponse, RedirectResponse]:
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not YARD_HTML.exists():
         raise HTTPException(status_code=404, detail="yard.html not found")
     return FileResponse(YARD_HTML)
 
 
-@app.get("/unloading-data")
-@app.get("/unloading_data")
-@app.get("/unloading_data.html")
-@app.get("/unloading-data.html")
-def serve_unloading_data() -> FileResponse:
+@app.get("/unloading-data", response_model=None)
+@app.get("/unloading_data", response_model=None)
+@app.get("/unloading_data.html", response_model=None)
+@app.get("/unloading-data.html", response_model=None)
+def serve_unloading_data(request: Request) -> Union[FileResponse, RedirectResponse]:
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not UNLOADING_DATA_HTML.exists():
         raise HTTPException(status_code=404, detail="unloading_data.html not found")
     return FileResponse(UNLOADING_DATA_HTML)
 
 
-@app.get("/maintenance/equipment")
-def serve_maintenance_equipment() -> FileResponse:
+@app.get("/maintenance/equipment", response_model=None)
+def serve_maintenance_equipment(request: Request) -> Union[FileResponse, RedirectResponse]:
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not MAINTENANCE_PLACEHOLDER_HTML.exists():
         raise HTTPException(status_code=404, detail="maintenance_placeholder.html not found")
     return FileResponse(MAINTENANCE_PLACEHOLDER_HTML)
 
 
-@app.get("/maintenance/history")
-def serve_maintenance_history() -> FileResponse:
+@app.get("/maintenance/history", response_model=None)
+def serve_maintenance_history(request: Request) -> Union[FileResponse, RedirectResponse]:
+    redir = _require_html_user_or_redirect(request)
+    if redir is not None:
+        return redir
     if not MAINTENANCE_PLACEHOLDER_HTML.exists():
         raise HTTPException(status_code=404, detail="maintenance_placeholder.html not found")
     return FileResponse(MAINTENANCE_PLACEHOLDER_HTML)

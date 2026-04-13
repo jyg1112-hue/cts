@@ -17,7 +17,7 @@ def chat_json_completion(
     api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
         return None
-    m = model or os.environ.get("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
+    m = model or os.environ.get("OPENAI_CHAT_MODEL", "gpt-5-mini")
     body = json.dumps(
         {
             "model": m,
@@ -26,8 +26,7 @@ def chat_json_completion(
                 {"role": "user", "content": user_prompt},
             ],
             "response_format": {"type": "json_object"},
-            "temperature": temperature,
-            "max_tokens": 1200,
+            "max_completion_tokens": 2000,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -53,7 +52,7 @@ def chat_text_completion(system_prompt: str, user_prompt: str, model: str | None
     api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
         return None
-    m = model or os.environ.get("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
+    m = model or os.environ.get("OPENAI_CHAT_MODEL", "gpt-5-mini")
     body = json.dumps(
         {
             "model": m,
@@ -61,8 +60,7 @@ def chat_text_completion(system_prompt: str, user_prompt: str, model: str | None
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.2,
-            "max_tokens": 900,
+            "max_completion_tokens": 1600,
         },
         ensure_ascii=False,
     ).encode("utf-8")

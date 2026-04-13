@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext'
+import { AccountSettingsModal } from '../AccountSettingsModal'
 
 const WEEKDAYS_KO = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -15,7 +17,11 @@ function formatDateTime(d: Date) {
 }
 
 export function Header() {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [now, setNow] = useState(() => new Date())
+  const [accountOpen, setAccountOpen] = useState(false)
+  const isPlatformAdmin = user?.id === 'admin'
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000)
@@ -54,8 +60,50 @@ export function Header() {
           >
             {formatDateTime(now)}
           </time>
+          {isPlatformAdmin ? (
+            <button
+              type="button"
+              onClick={() => setAccountOpen(true)}
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-text-muted transition hover:border-border hover:bg-page-bg hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ops"
+              aria-label="계정 설정"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          ) : null}
+          {user ? (
+            <button
+              type="button"
+              onClick={() => {
+                logout()
+                navigate('/login', { replace: true })
+              }}
+              className="shrink-0 rounded-lg border border-border px-3 py-2 text-[13px] font-medium text-text-muted transition hover:border-border hover:bg-page-bg hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ops"
+            >
+              로그아웃
+            </button>
+          ) : null}
         </div>
       </div>
+      {isPlatformAdmin ? (
+        <AccountSettingsModal
+          open={accountOpen}
+          onClose={() => setAccountOpen(false)}
+        />
+      ) : null}
     </header>
   )
 }

@@ -381,7 +381,7 @@ body {
 <div class="timeline-outer" id="tlOuter"></div>
 
 <!-- DELETE HINT -->
-<div class="del-hint" id="delHint">Delete 키를 눌러 선택된 항목을 삭제할 수 있습니다</div>
+<div class="del-hint" id="delHint">클릭: 선택 · Ctrl/Cmd+클릭: 다중 선택 · Delete: 삭제 · Ctrl/Cmd+Z: 되돌리기</div>
 
 <!-- SHIP MODAL -->
 <div class="modal-overlay" id="shipModal">
@@ -593,7 +593,11 @@ let items      = JSON.parse(localStorage.getItem(KEY) || '[]');
 let editId     = null;
 let maintEditId = null;
 let drag       = null;
-let selectedId = null;
+/** Windows: Ctrl, macOS: Cmd */
+function modKey(ev) {
+  return !!(ev && (ev.ctrlKey || ev.metaKey));
+}
+let selectedIds = new Set();
 let _berthRows = [];   // render() 후 캐시 — clientToX에서 재사용
 
 // ── UNDO ──
@@ -1084,6 +1088,12 @@ function scrollToMonthStart(year, month) {
 //  RENDER TIMELINE
 // ══════════════════════════════════════════
 function render() {
+  for (const id of [...selectedIds]) {
+    if (!items.some(i => i.id === id)) selectedIds.delete(id);
+  }
+  const delHintEl = document.getElementById('delHint');
+  if (delHintEl) delHintEl.classList.toggle('show', selectedIds.size > 0);
+
   const days  = getTotalDays();
   const today = parseDate(todayStr());
   const DOW   = ['일','월','화','수','목','금','토'];
@@ -1185,7 +1195,7 @@ function render() {
         const isJeonbi = item.type === 'jeonbi';
         el.className = 'maint-block'
           + (isJeonbi ? ' type-jeonbi' : '')
-          + (selectedId === item.id ? ' selected' : '');
+          + (selectedIds.has(item.id) ? ' selected' : '');
         const rawLabel = item.label || item.name || (isJeonbi ? '정비' : '장비청소');
         el.innerHTML = `<span class="maint-label">${rawLabel}</span>
           ${!toNext ? `<div class="resize-handle" data-rh="${item.id}"></div>` : ''}`;
@@ -1193,7 +1203,7 @@ function render() {
         el.className = 'ship-block'
           + (fromPrev ? ' cont-left' : '')
           + (toNext   ? ' cont-right' : '')
-          + (selectedId === item.id ? ' selected' : '');
+          + (selectedIds.has(item.id) ? ' selected' : '');
         el.style.background = item.color || '#9ca3af';
         const custIsPostco = isPostco(item.customer);
         el.style.color = custIsPostco ? '#111' : textColor(item.color || '#9ca3af');
@@ -1210,7 +1220,7 @@ function render() {
       el.style.left = lx + 'px'; el.style.width = lw + 'px';
       el.addEventListener('mouseenter', ev => showTip(ev, item.id));
       el.addEventListener('mouseleave', hideTip);
-      el.addEventListener('click',    ev => { ev.stopPropagation(); selectBlock(item.id); });
+      el.addEventListener('click',    ev => { ev.stopPropagation(); selectBlock(item.id, ev); });
       el.addEventListener('dblclick', ev => {
         ev.stopPropagation();
         if (item.type === 'maint')       openMaintEditModal(item.id);
@@ -1241,38 +1251,55 @@ function render() {
 // ══════════════════════════════════════════
 //  SELECTION & KEYBOARD DELETE
 // ══════════════════════════════════════════
-function selectBlock(id) {
-  selectedId = id;
+function selectBlock(id, ev) {
+  if (modKey(ev)) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+  } else {
+    selectedIds = new Set([id]);
+  }
   document.querySelectorAll('.ship-block, .maint-block').forEach(el => {
-    el.classList.toggle('selected', el.dataset.id === id);
+    el.classList.toggle('selected', selectedIds.has(el.dataset.id));
   });
-  document.getElementById('delHint').classList.add('show');
+  document.getElementById('delHint').classList.toggle('show', selectedIds.size > 0);
 }
 function deselectBlock() {
-  selectedId = null;
+  selectedIds.clear();
   document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
   document.getElementById('delHint').classList.remove('show');
 }
 
 document.addEventListener('keydown', e => {
-  // Ctrl+Z: 되돌리기
-  if ((e.key === 'z' || e.key === 'Z') && e.ctrlKey) {
+  // Ctrl+Z / Cmd+Z: 되돌리기
+  if ((e.key === 'z' || e.key === 'Z') && modKey(e)) {
     e.preventDefault();
     if (document.querySelector('.modal-overlay.show')) return;
     if (undoStack.length === 0) return;
     items = JSON.parse(undoStack.pop());
+    resolveBerthNonOverlap();
     save(); render();
     return;
   }
-  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
     // 모달이 열려있으면 무시
     if (document.querySelector('.modal-overlay.show')) return;
-    const item = items.find(x => x.id === selectedId);
-    if (!item) return;
-    if (confirm(`"${item.name}" 을(를) 삭제하시겠습니까?`)) {
+    const ids = [...selectedIds];
+    const picked = ids.map(id => items.find(x => x.id === id)).filter(Boolean);
+    if (!picked.length) return;
+    const label = (it) => it.name || it.label || '일정';
+    const msg =
+      picked.length === 1
+        ? `"${label(picked[0])}" 을(를) 삭제하시겠습니까?`
+        : `선택한 ${picked.length}개 일정을 삭제하시겠습니까?\n${picked
+            .slice(0, 5)
+            .map(label)
+            .join(', ')}${picked.length > 5 ? ' …' : ''}`;
+    if (confirm(msg)) {
       pushUndo();
-      items = items.filter(x => x.id !== selectedId);
-      selectedId = null;
+      const idSet = new Set(ids);
+      items = items.filter(x => !idSet.has(x.id));
+      selectedIds.clear();
+      resolveBerthNonOverlap();
       save(); render();
     }
   }
@@ -1298,7 +1325,7 @@ function onBlockMouseDown(e, id) {
   const startX = dtToX(s), endX = dtToX(en);
   const mouseX = clientToX(e.clientX, e.clientY);
   const isResize = !!e.target.closest('[data-rh]');
-  const isCopy   = e.ctrlKey && !isResize;
+  const isCopy   = modKey(e) && !isResize;
   const srcEl = e.currentTarget;
   const srcRect = srcEl.getBoundingClientRect();
   drag = isResize
@@ -1365,7 +1392,7 @@ document.addEventListener('mouseup', e => {
     const mouseX = clientToX(e.clientX, e.clientY);
     pushUndo();
     if (drag.isCopy && drag.type === 'move') {
-      // Ctrl+드래그: 원본 유지, 복사본 추가
+      // Ctrl/Cmd+드래그: 원본 유지, 복사본 추가
       const newStart = xToDt(Math.max(0, mouseX - drag.mouseOffsetFromStart));
       const dur = parseDT(item.end) - parseDT(item.start);
       const copy = {
@@ -1412,7 +1439,7 @@ function showTip(e, id) {
   if (item.bl)       html += `<br>B/L량: ${item.bl.toLocaleString()}톤`;
   if (item.rate)     html += `<br>하역율: ${item.rate}천톤/일`;
   if (item.customer) html += `<br>화주: ${item.customer}`;
-  html += `<br><span style="opacity:.5;font-size:10px">클릭:선택 / 더블클릭:수정 / Delete:삭제</span>`;
+  html += `<br><span style="opacity:.5;font-size:10px">클릭:선택 · Ctrl/Cmd+클릭:다중 · 더블클릭:수정 · Delete:삭제 · Ctrl/Cmd+Z:되돌리기</span>`;
   tip.innerHTML = html; tip.classList.add('show'); moveTip(e);
 }
 function moveTip(e) {
@@ -1509,8 +1536,7 @@ function autoAddMaintBeforeCoal(coalStart) {
   const maintStart = nickelEndDt.getTime();
   if (hasNickelCoalGapCleaning(prevNickel.end, coalStart)) return;
 
-  const maintEndCandidate = new Date(maintStart + 8 * 3600000);
-  const maintEnd = maintEndCandidate > coalStartDt ? coalStartDt : maintEndCandidate;
+  const maintEnd = new Date(maintStart + 8 * 3600000);
   if (maintEnd <= nickelEndDt) return;
 
   items.push({
@@ -1582,8 +1608,7 @@ function ensureNickelToCoalMaintCoverage() {
     const startMs = nickelEndDt.getTime();
     if (hasNickelCoalGapCleaning(prevNickel.end, ship.start)) return;
 
-    const maintEndCandidate = new Date(startMs + 8 * 3600000);
-    const maintEnd = maintEndCandidate > coalStartDt ? coalStartDt : maintEndCandidate;
+    const maintEnd = new Date(startMs + 8 * 3600000);
     if (maintEnd <= nickelEndDt) return;
 
     items.push({
@@ -1624,7 +1649,8 @@ function _advancePastFrozenMs(sMs, durMs, frozenMerged) {
   return s;
 }
 /**
- * 단일 선석: 선박·장비청소·정비가 시간으로 겹치지 않도록 순연 (시작이 앞선 일정 우선).
+ * 단일 선석: 선박·장비청소·정비가 시간으로 겹치지 않도록 순연 (시작 시각 순, 동시각이면 선박→청소→정비).
+ * 새로 넣은 일정은 겹치면 앞선 일정 뒤로 밀려 뒤쪽 일정이 연쇄 이동한다.
  * @param {object} [opts]
  * @param {boolean} [opts.freezeJeonbi] true면 정비(type=jeonbi) 구간은 움직이지 않음(재정렬 시).
  * @param {Set<string>} [opts.frozenIds] 추가로 고정할 항목 id (재정렬 시 첫 선박 등).
@@ -1639,38 +1665,51 @@ function resolveBerthNonOverlap(opts = {}) {
   );
   if (blocks.length === 0) return;
 
+  const typeRank = (t) => (t === 'ship' ? 0 : t === 'maint' ? 1 : 2);
   blocks.sort((a, b) => {
     const ds = parseDT(a.start) - parseDT(b.start);
     if (ds !== 0) return ds;
+    const tr = typeRank(a.type) - typeRank(b.type);
+    if (tr !== 0) return tr;
     return String(a.id).localeCompare(String(b.id));
   });
 
-  if (!freezeJeonbi && frozenIds.size === 0) {
-    let cursor = 0;
-    for (const it of blocks) {
-      const dur = parseDT(it.end) - parseDT(it.start);
-      let s = Math.max(parseDT(it.start).getTime(), cursor);
-      it.start = toDTLocal(new Date(s));
-      it.end = toDTLocal(new Date(s + dur));
-      cursor = s + dur;
-    }
-    return;
-  }
+  const isPinned = (it) =>
+    (it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id);
 
   const frozenIntervals = [];
   for (const it of blocks) {
-    if ((it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id)) {
+    if (isPinned(it)) {
       frozenIntervals.push([parseDT(it.start).getTime(), parseDT(it.end).getTime()]);
     }
   }
   const frozenMerged = _mergeIntervalsMs(frozenIntervals);
 
-  const movable = blocks.filter(it => !((it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id)));
   let cursor = 0;
-  for (const it of movable) {
+  for (const it of blocks) {
+    if (isPinned(it)) {
+      const e = parseDT(it.end).getTime();
+      cursor = Math.max(cursor, e);
+      continue;
+    }
+
     const dur = parseDT(it.end) - parseDT(it.start);
     let s = Math.max(parseDT(it.start).getTime(), cursor);
-    s = _advancePastFrozenMs(s, dur, frozenMerged);
+    if (it.type === 'ship') {
+      const ac = getArrivalConstraint(it);
+      if (ac) s = Math.max(s, ac.getTime());
+    }
+    if (frozenMerged.length) {
+      for (let g = 0; g < 200; g++) {
+        const bumped = _advancePastFrozenMs(s, dur, frozenMerged);
+        if (bumped === s) break;
+        s = bumped;
+        if (it.type === 'ship') {
+          const ac = getArrivalConstraint(it);
+          if (ac) s = Math.max(s, ac.getTime());
+        }
+      }
+    }
     it.start = toDTLocal(new Date(s));
     it.end = toDTLocal(new Date(s + dur));
     cursor = s + dur;
@@ -1801,7 +1840,8 @@ function deleteItem() {
   if (confirm(`"${it?.name}" 을(를) 삭제하시겠습니까?`)) {
     pushUndo();
     items = items.filter(x => x.id !== editId);
-    if (selectedId === editId) selectedId = null;
+    selectedIds.delete(editId);
+    resolveBerthNonOverlap();
     save(); closeShipModal(); render();
   }
 }
@@ -1847,7 +1887,8 @@ function deleteMaint() {
   if (confirm('장비청소 일정을 삭제하시겠습니까?')) {
     pushUndo();
     items = items.filter(x => x.id !== maintEditId);
-    if (selectedId === maintEditId) selectedId = null;
+    selectedIds.delete(maintEditId);
+    resolveBerthNonOverlap();
     save(); closeMaintModal(); render();
   }
 }
@@ -1900,7 +1941,8 @@ function deleteJeonbi() {
   if (confirm('정비 일정을 삭제하시겠습니까?')) {
     pushUndo();
     items = items.filter(x => x.id !== jeonbiEditId);
-    if (selectedId === jeonbiEditId) selectedId = null;
+    selectedIds.delete(jeonbiEditId);
+    resolveBerthNonOverlap();
     save(); closeJeonbiModal(); render();
   }
 }
@@ -2252,7 +2294,7 @@ function switchBerth(val) {
   if (val === 'banchu') window.location.href = '/banchu';
 }
 function clearAll() {
-  if (confirm('모든 데이터를 삭제하시겠습니까?')) { pushUndo(); items=[]; selectedId=null; save(); render(); }
+  if (confirm('모든 데이터를 삭제하시겠습니까?')) { pushUndo(); items=[]; selectedIds.clear(); save(); render(); }
 }
 
 // 오버레이 클릭 시 닫기 — mousedown이 오버레이에서 시작된 경우에만 닫음 (드래그로 닫히는 현상 방지)
@@ -2340,6 +2382,8 @@ if (migrated) save();
 // ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
+resolveBerthNonOverlap();
+save();
 initRange(); render(); scrollToToday();
 window.addEventListener('resize', render);
 </script>

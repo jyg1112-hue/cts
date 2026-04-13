@@ -38,6 +38,19 @@ def _metadata_match(meta: dict[str, Any], filt: dict[str, Any] | None) -> bool:
         elif k == "품종" and v:
             if str(v).lower() not in str(meta.get("품종") or "").lower():
                 return False
+        elif k in ("has_cargo_issue", "has_emergency_maintenance", "has_weather_delay"):
+            try:
+                if int(meta.get(k, 0)) != int(v):
+                    return False
+            except (ValueError, TypeError):
+                return False
+        elif k == "issue_keyword" and v:
+            # raw_비고 또는 issue_categories에 키워드가 포함된 문서만 통과
+            haystack = (
+                str(meta.get("raw_비고") or "") + " " + str(meta.get("issue_categories") or "")
+            ).lower()
+            if str(v).lower() not in haystack:
+                return False
     return True
 
 
