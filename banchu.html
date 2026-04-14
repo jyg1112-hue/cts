@@ -463,7 +463,7 @@ const HOLIDAYS = new Set([
   '2026-10-03','2026-10-09','2026-12-25',
 ]);
 
-let items      = JSON.parse(localStorage.getItem(KEY) || '[]');
+let items      = [];
 let editId     = null;
 function modKey(ev) {
   return !!(ev && (ev.ctrlKey || ev.metaKey));
@@ -1549,7 +1549,13 @@ function exportCSV() {
   a.download = '반출부두_스케줄.csv'; a.click();
 }
 
-function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+function save() {
+  fetch('/api/banchu', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  }).catch(err => console.warn('반출 저장 실패:', err));
+}
 
 // ══════════════════════════════════════════
 //  SCROLL TO TODAY
@@ -1570,10 +1576,18 @@ document.addEventListener('click', onBaseCalDocClick);
 document.addEventListener('keydown', onBaseCalKeydown);
 
 // ══════════════════════════════════════════
-//  INIT
+//  INIT (async — DB에서 로드)
 // ══════════════════════════════════════════
-initRange(); render(); scrollToToday();
-window.addEventListener('resize', render);
+(async function init() {
+  try {
+    const res = await fetch('/api/banchu');
+    if (res.ok) items = await res.json();
+  } catch (e) {
+    console.warn('반출 로드 실패:', e);
+  }
+  initRange(); render(); scrollToToday();
+  window.addEventListener('resize', render);
+})();
 </script>
 </body>
 </html>
