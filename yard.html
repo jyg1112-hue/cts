@@ -511,6 +511,10 @@ body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
 // ─────────────────────────────────────────
 const BERTH_KEY    = 'berth7_v6';
 const PAGE_KEY     = 'yard_page_mode_v1';
+
+// DB 캐시 (async IIFE에서 채움)
+let _scheduleCache = [];
+let _simCache = { overall: null, import: null };
 const IMPORT_OUT_COLLAPSE_KEY = 'yard_import_out_collapsed_v1';
 const LEGACY_SIM_KEY = 'yard_sim_v1';
 const SIM_KEYS = {
@@ -545,15 +549,8 @@ const DEFAULT_SETTINGS = {
 // ─────────────────────────────────────────
 function loadSimSettings(mode = getPageMode()) {
   try {
-    const key = simStorageKeyByMode(mode);
-    const raw = localStorage.getItem(key);
-    const legacyRaw = localStorage.getItem(LEGACY_SIM_KEY);
-    if (!raw && legacyRaw && mode === 'overall') {
-      localStorage.setItem(key, legacyRaw);
-    }
-    const effectiveRaw = raw || (mode === 'overall' ? legacyRaw : null);
-    if (!effectiveRaw) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    const parsed = JSON.parse(effectiveRaw);
+    const parsed = _simCache[mode];
+    if (!parsed) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     const d = DEFAULT_SETTINGS;
     return {
       selfYard: {
@@ -597,10 +594,16 @@ function loadSimSettings(mode = getPageMode()) {
 }
 
 function saveSimSettings(s) {
-  localStorage.setItem(simStorageKeyByMode(getPageMode()), JSON.stringify(s));
+  const mode = getPageMode();
+  _simCache[mode] = s;
+  fetch(`/api/yard-sim?mode=${mode}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(s),
+  }).catch(err => console.warn('시뮬 설정 저장 실패:', err));
 }
 
-let SIM = loadSimSettings();
+let SIM = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 
 // ─────────────────────────────────────────
 //  DATE HELPERS
@@ -646,7 +649,7 @@ function simRange() {
 //  INBOUND FROM berth7_v6 (READ-ONLY)
 // ─────────────────────────────────────────
 function calcAutoInbound(mode = getPageMode()) {
-  const raw = JSON.parse(localStorage.getItem(BERTH_KEY) || '[]');
+  const raw = _scheduleCache;
   const { start, end } = simRange();
   const result = {};
   const targetYard = mode === 'import' ? 'rent' : 'self';
@@ -2014,10 +2017,33 @@ document.getElementById('confirmModal').addEventListener('click', e => {
 });
 
 // ─────────────────────────────────────────
-//  INIT
+//  INIT (async — DB에서 로드)
 // ─────────────────────────────────────────
-document.getElementById('pageSelect').value = getPageMode();
-refresh();
+(async function init() {
+  try {
+    const [overallRes, importRes, scheduleRes] = await Promise.all([
+      fetch('/api/yard-sim?mode=overall'),
+      fetch('/api/yard-sim?mode=import'),
+      fetch('/api/schedule'),
+    ]);
+    if (overallRes.ok) {
+      const d = await overallRes.json();
+      if (d) _simCache.overall = d;
+    }
+    if (importRes.ok) {
+      const d = await importRes.json();
+      if (d) _simCache.import = d;
+    }
+    if (scheduleRes.ok) {
+      _scheduleCache = await scheduleRes.json();
+    }
+  } catch (e) {
+    console.warn('초기 데이터 로드 실패:', e);
+  }
+  SIM = loadSimSettings(getPageMode());
+  document.getElementById('pageSelect').value = getPageMode();
+  refresh();
+})();
 </script>
 </body>
 </html>
