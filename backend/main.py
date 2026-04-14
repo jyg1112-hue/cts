@@ -1639,8 +1639,11 @@ if CSS_DIR.exists():
 
 @app.on_event("startup")
 def debug_startup_trace() -> None:
-    _ensure_schedule_banchu_tables()
-    _ensure_yard_sim_table()
+    try:
+        _ensure_schedule_banchu_tables()
+        _ensure_yard_sim_table()
+    except Exception as _e:
+        print(f"[startup] DB 테이블 생성 실패 (DATABASE_URL 확인 필요): {_e}", flush=True)
     # region agent log
     _debug_log(
         "H2",
