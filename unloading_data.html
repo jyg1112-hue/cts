@@ -1565,9 +1565,10 @@
       return resp.json();
     }
 
-    function formatUnixTime(sec) {
-      if (!sec) return "-";
-      const d = new Date(sec * 1000);
+    function formatUnixTime(val) {
+      if (!val) return "-";
+      const d = typeof val === "number" ? new Date(val * 1000) : new Date(val);
+      if (isNaN(d.getTime())) return "-";
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const day = String(d.getDate()).padStart(2, "0");
