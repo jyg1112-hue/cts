@@ -589,7 +589,7 @@ const HOLIDAYS = new Set([
   '2026-10-03','2026-10-09','2026-12-25',
 ]);
 
-let items      = JSON.parse(localStorage.getItem(KEY) || '[]');
+let items      = [];
 let editId     = null;
 let maintEditId = null;
 let drag       = null;
@@ -2289,7 +2289,13 @@ function exportCSV() {
 function printSchedule() {
   window.print();
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+function save() {
+  fetch('/api/schedule', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  }).catch(err => console.warn('스케줄 저장 실패:', err));
+}
 function switchBerth(val) {
   if (val === 'banchu') window.location.href = '/banchu';
 }
@@ -2368,24 +2374,30 @@ if (items.length === 0) {
 }
 
 // ══════════════════════════════════════════
-//  DATA MIGRATION
+//  INIT (async — DB에서 로드)
 // ══════════════════════════════════════════
-// 정기정비 → 정비 마이그레이션
-let migrated = false;
-items.forEach(i => {
-  if (i.type === 'jeonbi' && (i.label === '정기정비' || i.name === '정기정비')) {
-    i.label = '정비'; i.name = '정비'; migrated = true;
+(async function init() {
+  try {
+    const res = await fetch('/api/schedule');
+    if (res.ok) items = await res.json();
+  } catch (e) {
+    console.warn('스케줄 로드 실패:', e);
   }
-});
-if (migrated) save();
 
-// ══════════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════════
-resolveBerthNonOverlap();
-save();
-initRange(); render(); scrollToToday();
-window.addEventListener('resize', render);
+  // 정기정비 → 정비 마이그레이션
+  let migrated = false;
+  items.forEach(i => {
+    if (i.type === 'jeonbi' && (i.label === '정기정비' || i.name === '정기정비')) {
+      i.label = '정비'; i.name = '정비'; migrated = true;
+    }
+  });
+  if (migrated) save();
+
+  resolveBerthNonOverlap();
+  save();
+  initRange(); render(); scrollToToday();
+  window.addEventListener('resize', render);
+})();
 </script>
 </body>
 </html>
