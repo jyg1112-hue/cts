@@ -170,13 +170,9 @@ def _ensure_upload_dir() -> None:
     UNLOADING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _uploaded_excel_files() -> list[Path]:
-    _ensure_upload_dir()
-    files = sorted(
-        [p for p in UNLOADING_UPLOAD_DIR.iterdir() if p.is_file() and UPLOAD_NAME_PATTERN.match(p.name)],
-        key=lambda p: p.name,
-    )
-    return files
+def _uploaded_excel_files() -> list[str]:
+    """Storage 파일명 목록 반환 (하위 호환용 래퍼)."""
+    return sorted(f["name"] for f in _uploaded_storage_files())
 
 
 def _uploaded_excel_file_details() -> list[dict[str, Any]]:
@@ -1495,7 +1491,6 @@ if CSS_DIR.exists():
 
 @app.on_event("startup")
 def debug_startup_trace() -> None:
-    _ensure_upload_dir()
     # region agent log
     _debug_log(
         "H2",
@@ -1683,7 +1678,7 @@ def unloading_data_meta() -> JSONResponse:
             "years": years,
             "brands": {"coal": coal_brands, "nickel": nickel_brands},
             "issue_categories": ISSUE_CATEGORIES,
-            "uploaded_files": [p.name for p in _uploaded_excel_files()],
+            "uploaded_files": _uploaded_excel_files(),
             "uploaded_file_details": _uploaded_excel_file_details(),
         }
     )
@@ -1692,7 +1687,6 @@ def unloading_data_meta() -> JSONResponse:
 @app.post("/api/unloading-data/upload")
 async def upload_unloading_excel(request: Request, file: UploadFile = File(...)) -> JSONResponse:
     u = _session_user(request)
-    _ensure_upload_dir()
     original_name = (file.filename or "").strip()
     if not original_name:
         raise HTTPException(status_code=400, detail="파일명이 비어 있습니다.")
@@ -1706,12 +1700,16 @@ async def upload_unloading_excel(request: Request, file: UploadFile = File(...))
         raise HTTPException(status_code=400, detail="파일명에 연도(YYYY)가 포함되어야 합니다.")
     year = match.group(1)
     target_name = f"{year}_하역률{ext}"
-    target_path = UNLOADING_UPLOAD_DIR / target_name
 
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
-    target_path.write_bytes(content)
+
+    bucket = _storage_client()
+    try:
+        bucket.upload(target_name, content, {"upsert": "true"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Storage 업로드 실패: {e}")
 
     if u:
         pa.audit_write(request, u, "api_unloading_upload", target_name)
@@ -1720,7 +1718,7 @@ async def upload_unloading_excel(request: Request, file: UploadFile = File(...))
         {
             "message": "업로드 완료",
             "saved_as": target_name,
-            "uploaded_files": [p.name for p in _uploaded_excel_files()],
+            "uploaded_files": _uploaded_excel_files(),
             "uploaded_file_details": _uploaded_excel_file_details(),
         }
     )
@@ -1728,14 +1726,14 @@ async def upload_unloading_excel(request: Request, file: UploadFile = File(...))
 
 @app.delete("/api/unloading-data/upload/{file_name}")
 def delete_uploaded_unloading_excel(request: Request, file_name: str) -> JSONResponse:
-    _ensure_upload_dir()
     if not UPLOAD_NAME_PATTERN.match(file_name):
         raise HTTPException(status_code=400, detail="허용되지 않은 파일명입니다.")
 
-    target_path = UNLOADING_UPLOAD_DIR / file_name
-    if not target_path.exists() or not target_path.is_file():
-        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
-    target_path.unlink()
+    bucket = _storage_client()
+    try:
+        bucket.remove([file_name])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Storage 삭제 실패: {e}")
 
     u = _session_user(request)
     if u:
@@ -1745,7 +1743,7 @@ def delete_uploaded_unloading_excel(request: Request, file_name: str) -> JSONRes
         {
             "message": "삭제 완료",
             "deleted": file_name,
-            "uploaded_files": [p.name for p in _uploaded_excel_files()],
+            "uploaded_files": _uploaded_excel_files(),
             "uploaded_file_details": _uploaded_excel_file_details(),
         }
     )
