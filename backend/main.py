@@ -422,37 +422,59 @@ def _parse_unloading_sheet(cargo_type: str, sheet_name: str, source_path: Path) 
 
 
 def _get_unloading_dataset() -> list[dict[str, Any]]:
-    source_files = _uploaded_excel_files()
-    if not source_files:
+    import tempfile
+
+    storage_files = _uploaded_storage_files()
+
+    # Storage에 파일 없으면 번들 fallback 사용
+    if not storage_files:
         if not UNLOADING_XLS_PATH.exists():
             return []
-        source_files = [UNLOADING_XLS_PATH]
+        all_rows: list[dict[str, Any]] = []
+        for cargo, sheet in [("coal", UNLOADING_COAL_SHEET), ("nickel", UNLOADING_NICKEL_SHEET)]:
+            try:
+                all_rows.extend(_parse_unloading_sheet(cargo, sheet, UNLOADING_XLS_PATH))
+            except Exception:
+                pass
+        return all_rows
 
-    all_rows: list[dict[str, Any]] = []
-    for source in source_files:
+    bucket = _storage_client()
+    all_rows = []
+    for f in sorted(storage_files, key=lambda x: x.get("name", "")):
+        ext = Path(f["name"]).suffix.lower()
+        tmp_path: Path | None = None
         try:
-            all_rows.extend(_parse_unloading_sheet("coal", UNLOADING_COAL_SHEET, source))
+            data = bucket.download(f["name"])
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = Path(tmp.name)
+            for cargo, sheet in [("coal", UNLOADING_COAL_SHEET), ("nickel", UNLOADING_NICKEL_SHEET)]:
+                try:
+                    all_rows.extend(_parse_unloading_sheet(cargo, sheet, tmp_path))
+                except Exception:
+                    pass
         except Exception:
             pass
-        try:
-            all_rows.extend(_parse_unloading_sheet("nickel", UNLOADING_NICKEL_SHEET, source))
-        except Exception:
-            pass
+        finally:
+            if tmp_path and tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
     return all_rows
 
 
 def _haeyang_source_fingerprint() -> str:
     """업로드/기본 엑셀 파일 변경 시 하역 챗봇 인덱스를 다시 빌드하기 위한 지문."""
-    files = _uploaded_excel_files()
+    files = _uploaded_storage_files()
     if not files:
-        files = [UNLOADING_XLS_PATH] if UNLOADING_XLS_PATH.exists() else []
-    parts: list[str] = []
-    for p in files:
-        try:
-            st = p.stat()
-            parts.append(f"{p.name}:{st.st_mtime_ns}:{st.st_size}")
-        except OSError:
-            parts.append(str(p))
+        if UNLOADING_XLS_PATH.exists():
+            st = UNLOADING_XLS_PATH.stat()
+            parts = [f"{UNLOADING_XLS_PATH.name}:{st.st_mtime_ns}:{st.st_size}"]
+        else:
+            parts = []
+    else:
+        parts = [
+            f"{f['name']}:{f.get('updated_at', '')}:{(f.get('metadata') or {}).get('size', 0)}"
+            for f in sorted(files, key=lambda x: x.get("name", ""))
+        ]
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
