@@ -41,6 +41,70 @@ DEBUG_LOG_PATH = BASE_DIR / "debug-34636b.log"
 UNLOADING_XLS_PATH = BASE_DIR / "backdata" / "(2025년) 7선석 하역률.xls"
 UNLOADING_UPLOAD_DIR = BASE_DIR / "backdata" / "uploads"
 SUPABASE_BUCKET = "unloading-excel"
+
+
+def _db_dsn() -> str | None:
+    u = (os.environ.get("DATABASE_URL") or "").strip()
+    return u or None
+
+
+def _ensure_schedule_banchu_tables() -> None:
+    """schedule_items, banchu_items 테이블이 없으면 생성."""
+    dsn = _db_dsn()
+    if not dsn:
+        return
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS schedule_items (
+                    id TEXT PRIMARY KEY,
+                    data JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS banchu_items (
+                    id TEXT PRIMARY KEY,
+                    data JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+
+
+def _db_fetch_items(table: str) -> list[tuple]:
+    """테이블에서 모든 아이템 data 컬럼 반환."""
+    dsn = _db_dsn()
+    if not dsn:
+        return []
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT data FROM {table} ORDER BY updated_at")
+            return cur.fetchall()
+
+
+def _db_save_items(table: str, items: list[dict[str, Any]]) -> None:
+    """테이블 전체를 items로 교체 저장 (DELETE → INSERT)."""
+    dsn = _db_dsn()
+    if not dsn:
+        return
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table}")
+            for item in items:
+                item_id = str(item.get("id") or "")
+                if not item_id:
+                    continue
+                cur.execute(
+                    f"INSERT INTO {table} (id, data, updated_at) VALUES (%s, %s, NOW())",
+                    (item_id, json.dumps(item, ensure_ascii=False)),
+                )
+        conn.commit()
+
+
 UNLOADING_COAL_SHEET = "석탄(년)"
 UNLOADING_NICKEL_SHEET = "니켈(년)"
 
@@ -62,6 +126,10 @@ class PlatformApiAuthMiddleware(BaseHTTPMiddleware):
             if path == "/api/unloading-data/summary" and request.method == "GET":
                 return await call_next(request)
             if path == "/api/unloading-data/chat" and request.method == "POST":
+                return await call_next(request)
+            if path == "/api/schedule":
+                return await call_next(request)
+            if path == "/api/banchu":
                 return await call_next(request)
             u = request.session.get("user")
             if not u or not isinstance(u, str) or not str(u).strip():
@@ -1513,6 +1581,7 @@ if CSS_DIR.exists():
 
 @app.on_event("startup")
 def debug_startup_trace() -> None:
+    _ensure_schedule_banchu_tables()
     # region agent log
     _debug_log(
         "H2",
@@ -1677,6 +1746,54 @@ def supply_news(cargo_type: str = "nickel") -> JSONResponse:
     if ct not in ("nickel", "coal"):
         raise HTTPException(status_code=400, detail="cargo_type은 nickel 또는 coal 이어야 합니다.")
     return JSONResponse(get_supply_news_payload(ct))
+
+
+@app.get("/api/schedule")
+def get_schedule() -> JSONResponse:
+    try:
+        rows = _db_fetch_items("schedule_items")
+        items = [row[0] for row in rows]
+    except Exception:
+        items = []
+    return JSONResponse(items)
+
+
+@app.put("/api/schedule")
+async def put_schedule(request: Request) -> JSONResponse:
+    try:
+        items = await request.json()
+        if not isinstance(items, list):
+            raise HTTPException(status_code=400, detail="배열 형식이어야 합니다.")
+        _db_save_items("schedule_items", items)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"저장 실패: {e}")
+    return JSONResponse({"ok": True, "count": len(items)})
+
+
+@app.get("/api/banchu")
+def get_banchu() -> JSONResponse:
+    try:
+        rows = _db_fetch_items("banchu_items")
+        items = [row[0] for row in rows]
+    except Exception:
+        items = []
+    return JSONResponse(items)
+
+
+@app.put("/api/banchu")
+async def put_banchu(request: Request) -> JSONResponse:
+    try:
+        items = await request.json()
+        if not isinstance(items, list):
+            raise HTTPException(status_code=400, detail="배열 형식이어야 합니다.")
+        _db_save_items("banchu_items", items)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"저장 실패: {e}")
+    return JSONResponse({"ok": True, "count": len(items)})
 
 
 @app.get("/api/config")
