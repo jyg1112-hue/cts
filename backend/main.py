@@ -40,6 +40,7 @@ PUBLIC_DIR = BASE_DIR / "public"
 DEBUG_LOG_PATH = BASE_DIR / "debug-34636b.log"
 UNLOADING_XLS_PATH = BASE_DIR / "backdata" / "(2025년) 7선석 하역률.xls"
 UNLOADING_UPLOAD_DIR = BASE_DIR / "backdata" / "uploads"
+SUPABASE_BUCKET = "unloading-excel"
 UNLOADING_COAL_SHEET = "석탄(년)"
 UNLOADING_NICKEL_SHEET = "니켈(년)"
 
@@ -140,6 +141,31 @@ def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> N
         f.write(json.dumps(payload, ensure_ascii=True) + "\n")
 
 
+def _storage_client():
+    """Supabase Storage 버킷 클라이언트 반환."""
+    from supabase import create_client
+    url = (os.environ.get("SUPABASE_URL") or "").strip()
+    key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
+    if not url or not key:
+        raise HTTPException(
+            status_code=500,
+            detail="SUPABASE_URL 또는 SUPABASE_SERVICE_KEY 환경변수가 설정되지 않았습니다.",
+        )
+    return create_client(url, key).storage.from_(SUPABASE_BUCKET)
+
+
+def _uploaded_storage_files() -> list[dict[str, Any]]:
+    """Storage 버킷에서 패턴에 맞는 파일 목록 반환. 오류 시 빈 리스트."""
+    try:
+        bucket = _storage_client()
+        files = bucket.list()
+        return [f for f in (files or []) if UPLOAD_NAME_PATTERN.match(f.get("name", ""))]
+    except HTTPException:
+        raise
+    except Exception:
+        return []
+
+
 def _ensure_upload_dir() -> None:
     UNLOADING_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -154,17 +180,15 @@ def _uploaded_excel_files() -> list[Path]:
 
 
 def _uploaded_excel_file_details() -> list[dict[str, Any]]:
-    details: list[dict[str, Any]] = []
-    for path in _uploaded_excel_files():
-        stat = path.stat()
-        details.append(
-            {
-                "name": path.name,
-                "size_bytes": stat.st_size,
-                "updated_at": int(stat.st_mtime),
-            }
-        )
-    return details
+    files = sorted(_uploaded_storage_files(), key=lambda f: f.get("name", ""))
+    return [
+        {
+            "name": f["name"],
+            "size_bytes": (f.get("metadata") or {}).get("size", 0),
+            "updated_at": f.get("updated_at", ""),
+        }
+        for f in files
+    ]
 
 
 def _normalize_text(value: Any) -> str:
