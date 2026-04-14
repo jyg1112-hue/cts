@@ -123,7 +123,7 @@ ISSUE_CATEGORY_RULES = {
     ],
 }
 ISSUE_CATEGORIES = list(ISSUE_CATEGORY_RULES.keys()) + ["기타"]
-UPLOAD_NAME_PATTERN = re.compile(r"^(?P<year>\d{4})_unloading\.(?P<ext>xls|xlsx)$", re.IGNORECASE)
+UPLOAD_NAME_PATTERN = re.compile(r"^(?P<year>\d{4})_하역률\.(?P<ext>xls|xlsx)$", re.IGNORECASE)
 
 
 def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
