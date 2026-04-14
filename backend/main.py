@@ -42,6 +42,7 @@ UNLOADING_XLS_PATH = BASE_DIR / "backdata" / "(2025년) 7선석 하역률.xls"
 UNLOADING_UPLOAD_DIR = BASE_DIR / "backdata" / "uploads"
 SUPABASE_BUCKET = "unloading-excel"
 _ALLOWED_ITEM_TABLES = frozenset({"schedule_items", "banchu_items"})
+_ALLOWED_SIM_MODES = frozenset({"overall", "import"})
 
 
 def _db_dsn() -> str | None:
@@ -110,6 +111,56 @@ def _db_save_items(table: str, items: list[dict[str, Any]]) -> None:
         conn.commit()
 
 
+def _ensure_yard_sim_table() -> None:
+    """yard_sim_settings 테이블이 없으면 생성."""
+    dsn = _db_dsn()
+    if not dsn:
+        return
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS yard_sim_settings (
+                    mode TEXT PRIMARY KEY,
+                    data JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+
+
+def _db_get_yard_sim(mode: str) -> dict | None:
+    """해당 모드 SIM 설정 반환. 없으면 None."""
+    dsn = _db_dsn()
+    if not dsn:
+        return None
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT data FROM yard_sim_settings WHERE mode = %s", (mode,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
+
+def _db_save_yard_sim(mode: str, data: dict) -> None:
+    """해당 모드 SIM 설정 저장 (upsert)."""
+    dsn = _db_dsn()
+    if not dsn:
+        return
+    import psycopg
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO yard_sim_settings (mode, data, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (mode) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+                """,
+                (mode, json.dumps(data, ensure_ascii=False)),
+            )
+        conn.commit()
+
+
 UNLOADING_COAL_SHEET = "석탄(년)"
 UNLOADING_NICKEL_SHEET = "니켈(년)"
 
@@ -135,6 +186,8 @@ class PlatformApiAuthMiddleware(BaseHTTPMiddleware):
             if path == "/api/schedule":
                 return await call_next(request)
             if path == "/api/banchu":
+                return await call_next(request)
+            if path == "/api/yard-sim":
                 return await call_next(request)
             u = request.session.get("user")
             if not u or not isinstance(u, str) or not str(u).strip():
@@ -1587,6 +1640,7 @@ if CSS_DIR.exists():
 @app.on_event("startup")
 def debug_startup_trace() -> None:
     _ensure_schedule_banchu_tables()
+    _ensure_yard_sim_table()
     # region agent log
     _debug_log(
         "H2",
@@ -1799,6 +1853,33 @@ async def put_banchu(request: Request) -> JSONResponse:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"저장 실패: {e}")
     return JSONResponse({"ok": True, "count": len(items)})
+
+
+@app.get("/api/yard-sim")
+def get_yard_sim(mode: str) -> JSONResponse:
+    if mode not in _ALLOWED_SIM_MODES:
+        raise HTTPException(status_code=400, detail="mode는 'overall' 또는 'import'여야 합니다.")
+    try:
+        data = _db_get_yard_sim(mode)
+    except Exception:
+        data = None
+    return JSONResponse(data)
+
+
+@app.put("/api/yard-sim")
+async def put_yard_sim(request: Request, mode: str) -> JSONResponse:
+    if mode not in _ALLOWED_SIM_MODES:
+        raise HTTPException(status_code=400, detail="mode는 'overall' 또는 'import'여야 합니다.")
+    try:
+        data = await request.json()
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=400, detail="객체 형식이어야 합니다.")
+        _db_save_yard_sim(mode, data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"저장 실패: {e}")
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/config")
