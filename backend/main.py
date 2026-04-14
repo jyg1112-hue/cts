@@ -41,6 +41,7 @@ DEBUG_LOG_PATH = BASE_DIR / "debug-34636b.log"
 UNLOADING_XLS_PATH = BASE_DIR / "backdata" / "(2025년) 7선석 하역률.xls"
 UNLOADING_UPLOAD_DIR = BASE_DIR / "backdata" / "uploads"
 SUPABASE_BUCKET = "unloading-excel"
+_ALLOWED_ITEM_TABLES = frozenset({"schedule_items", "banchu_items"})
 
 
 def _db_dsn() -> str | None:
@@ -75,6 +76,8 @@ def _ensure_schedule_banchu_tables() -> None:
 
 def _db_fetch_items(table: str) -> list[tuple]:
     """테이블에서 모든 아이템 data 컬럼 반환."""
+    if table not in _ALLOWED_ITEM_TABLES:
+        raise ValueError(f"허용되지 않은 테이블: {table}")
     dsn = _db_dsn()
     if not dsn:
         return []
@@ -87,6 +90,8 @@ def _db_fetch_items(table: str) -> list[tuple]:
 
 def _db_save_items(table: str, items: list[dict[str, Any]]) -> None:
     """테이블 전체를 items로 교체 저장 (DELETE → INSERT)."""
+    if table not in _ALLOWED_ITEM_TABLES:
+        raise ValueError(f"허용되지 않은 테이블: {table}")
     dsn = _db_dsn()
     if not dsn:
         return
