@@ -4,10 +4,11 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from haeyang.db_runtime import haeyang_database_url
 from haeyang.openai_json import chat_json_completion, chat_text_completion
 
 SQL_SYSTEM_PROMPT = """
-당신은 하역률 SQLite DB용 SELECT 쿼리만 생성한다.
+당신은 하역률 PostgreSQL DB용 SELECT 쿼리만 생성한다. (로컬 개발 시 SQLite와 동일한 스키마·따옴표 규칙을 따른다.)
 
 테이블 스키마:
 - coal_records: 석탄 하역 데이터
@@ -89,7 +90,8 @@ def _validate_sql(sql: str) -> bool:
 
 
 def run_sql_chain(question: str, db_path: Path) -> str | None:
-    if not db_path.exists():
+    dsn = haeyang_database_url()
+    if not dsn and not db_path.exists():
         return None
     user = f"질문: {question}\n"
     parsed = chat_json_completion(SQL_SYSTEM_PROMPT, user, temperature=0.0)
@@ -98,21 +100,38 @@ def run_sql_chain(question: str, db_path: Path) -> str | None:
     sql = parsed["sql"].strip()
     if not _validate_sql(sql):
         return None
+    rows: list[Any] = []
     try:
-        conn = sqlite3.connect(str(db_path))
-        conn.row_factory = sqlite3.Row
-        cur = conn.execute(sql)
-        rows = cur.fetchmany(50)
-        conn.close()
-    except sqlite3.Error:
+        if dsn:
+            import psycopg
+            from psycopg.rows import dict_row
+
+            with psycopg.connect(dsn, row_factory=dict_row) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+                    rows = list(cur.fetchmany(50))
+        else:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            try:
+                cur = conn.execute(sql)
+                rows = cur.fetchmany(50)
+            finally:
+                conn.close()
+    except Exception:
         return None
     if not rows:
         summary = "(SQL 결과 없음)"
     else:
-        cols = rows[0].keys()
-        lines = [", ".join(cols)]
+        cols = list(rows[0].keys()) if hasattr(rows[0], "keys") else []
+        if not cols and isinstance(rows[0], sqlite3.Row):
+            cols = list(rows[0].keys())
+        lines = [", ".join(str(c) for c in cols)]
         for r in rows[:20]:
-            lines.append(", ".join(str(r[c]) for c in cols))
+            if isinstance(r, sqlite3.Row):
+                lines.append(", ".join(str(r[c]) for c in cols))
+            else:
+                lines.append(", ".join(str(r.get(c)) for c in cols))
         summary = "\n".join(lines)
     explain = chat_text_completion(
         "SQL 결과를 한국어로 1~4문장으로만 설명한다. 수치는 그대로 인용한다.",

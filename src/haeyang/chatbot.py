@@ -11,12 +11,13 @@ from langchain_core.documents import Document
 
 from haeyang.db_builder import (
     build_bm25_index,
-    build_sqlite,
+    build_relational_tables,
     build_vector_db,
     load_bm25_artifact,
-    read_fingerprint,
+    read_stored_fingerprint,
+    relational_db_ready,
     save_bm25_artifact,
-    write_fingerprint,
+    write_stored_fingerprint,
 )
 from haeyang.preprocess import build_all_documents, rows_to_dataframes
 from haeyang.reranker import Reranker
@@ -51,10 +52,10 @@ def _reranker_model() -> str:
 
 
 def rebuild_index(base_dir: Path, rows: list[dict[str, Any]], fingerprint: str) -> None:
-    """SQLite + Chroma + BM25 재구축."""
+    """관계형(PostgreSQL 또는 SQLite) + Chroma + BM25 재구축."""
     coal_df, nickel_df = rows_to_dataframes(rows)
     db_path, chroma_dir, bm25_path, _ = _processed_paths(base_dir)
-    build_sqlite(coal_df, nickel_df, db_path)
+    build_relational_tables(coal_df, nickel_df, db_path)
     documents = build_all_documents(coal_df, nickel_df)
     if not documents:
         return
@@ -73,7 +74,7 @@ def rebuild_index(base_dir: Path, rows: list[dict[str, Any]], fingerprint: str) 
                 )
                 + "\n"
             )
-    write_fingerprint(base_dir, fingerprint)
+    write_stored_fingerprint(base_dir, fingerprint)
     _cached.clear()
 
 
@@ -100,13 +101,13 @@ def get_or_build_context(base_dir: Path, rows: list[dict[str, Any]], fingerprint
         if _cached.get("fp") == key and _cached.get("ctx"):
             return _cached["ctx"]
 
-        proc_fp = read_fingerprint(base_dir)
+        proc_fp = read_stored_fingerprint(base_dir)
         db_path, chroma_dir, bm25_path, _ = _processed_paths(base_dir)
         docs_cache = _load_documents_from_cache(base_dir)
 
         need_rebuild = (
             proc_fp != key
-            or not db_path.exists()
+            or not relational_db_ready(db_path)
             or not chroma_dir.exists()
             or not bm25_path.exists()
             or len(docs_cache) == 0

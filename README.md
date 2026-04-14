@@ -10,13 +10,15 @@
 - `backend/main.py`: API + 페이지 라우팅 서버
 - `api/index.py`: Vercel Serverless Function 진입점
 - `vercel.json`: Vercel 빌드/라우팅 설정
-- `requirements.txt`: Python 의존성
+- `requirements.txt`: 서버·챗봇용 Python 의존성(배포 기본)
+- `requirements-dev.txt`: 로컬용 `streamlit`, `pytest` 포함 (`pip install -r requirements-dev.txt`)
 - `Dockerfile`: 컨테이너 배포 설정
 
 ## 로컬 실행
 
 ```bash
 pip install -r requirements.txt
+# Streamlit 시험(app.py)·pytest까지 쓰려면: pip install -r requirements-dev.txt
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
