@@ -18,3 +18,9 @@ services:
         value: gpt-4o-mini
       - key: TAVILY_SEARCH_DEPTH
         value: basic
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
