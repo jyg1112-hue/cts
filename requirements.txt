@@ -10,7 +10,7 @@ cachetools==6.2.6
 certifi==2026.2.25
 charset-normalizer==3.4.7
 chromadb==1.5.7
-click==8.1.8
+click==8.2.1
 coloredlogs==15.0.1
 durationpy==0.10
 et_xmlfile==2.0.0
