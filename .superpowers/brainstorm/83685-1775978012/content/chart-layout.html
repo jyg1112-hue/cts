@@ -1,0 +1,46 @@
+<h2>차트 위치 — 어떤 방식이 좋으세요?</h2>
+<p class="subtitle">재고 추이 그래프를 시뮬레이션 테이블과 어떻게 배치할까요?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>테이블 위 — 항상 표시</h3>
+      <p>페이지 상단에 차트, 아래에 테이블. 스크롤 없이 바로 보임.</p>
+      <div style="margin-top:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;font-size:11px;color:#6b7280">
+        <div style="background:#f3f4f6;padding:6px 10px;border-bottom:1px solid #e5e7eb">헤더 툴바</div>
+        <div style="background:#dbeafe;padding:14px 10px;text-align:center;color:#1d4ed8;font-weight:600">📈 재고 추이 차트</div>
+        <div style="background:#fff;padding:10px;text-align:center">시뮬레이션 테이블</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>테이블 아래 — 스크롤 후 확인</h3>
+      <p>테이블 먼저, 아래로 스크롤하면 차트. 테이블이 우선순위.</p>
+      <div style="margin-top:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;font-size:11px;color:#6b7280">
+        <div style="background:#f3f4f6;padding:6px 10px;border-bottom:1px solid #e5e7eb">헤더 툴바</div>
+        <div style="background:#fff;padding:10px;text-align:center">시뮬레이션 테이블</div>
+        <div style="background:#dbeafe;padding:14px 10px;text-align:center;color:#1d4ed8;font-weight:600">📈 재고 추이 차트</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>토글 버튼 — 접기/펼치기</h3>
+      <p>헤더에 "차트 보기" 버튼. 클릭하면 테이블 위에 차트가 펼쳐짐. 필요할 때만 표시.</p>
+      <div style="margin-top:10px;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;font-size:11px;color:#6b7280">
+        <div style="background:#f3f4f6;padding:6px 10px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px">
+          <span>헤더 툴바</span>
+          <span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:4px;font-size:10px">📈 차트 보기</span>
+        </div>
+        <div style="background:#dbeafe;padding:14px 10px;text-align:center;color:#1d4ed8;font-weight:600">📈 재고 추이 차트 (펼쳐진 상태)</div>
+        <div style="background:#fff;padding:10px;text-align:center">시뮬레이션 테이블</div>
+      </div>
+    </div>
+  </div>
+</div>

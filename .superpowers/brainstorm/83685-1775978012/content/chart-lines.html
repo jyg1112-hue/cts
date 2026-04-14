@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>차트 선 비교</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9fafb; color: #111827; padding: 24px; }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card { background: #fff; border: 2px solid #e5e7eb; border-radius: 10px; padding: 16px; cursor: pointer; transition: border-color .15s; }
+  .card:hover { border-color: #93c5fd; }
+  .card.selected { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+  .card-label { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .badge { background: #3b82f6; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 12px; }
+  .card-desc { font-size: 12px; color: #6b7280; margin-top: 10px; }
+  .indicator { margin-top: 20px; text-align: center; font-size: 13px; color: #6b7280; }
+  .indicator span { background: #3b82f6; color: #fff; padding: 4px 14px; border-radius: 20px; font-weight: 600; }
+</style>
+</head>
+<body>
+<h2>차트 선 개수 — 어떤 게 더 보기 편한가요?</h2>
+<p class="subtitle">같은 60일 시뮬레이션 데이터 기준 샘플입니다.</p>
+
+<div class="split">
+  <!-- Option A -->
+  <div class="card" id="cardA" onclick="select('a')">
+    <div class="card-label"><span class="badge">A</span> 총재고만 (선 1개)</div>
+    <canvas id="chartA" height="180"></canvas>
+    <p class="card-desc">단순하고 한눈에 파악. 야드별 구분은 불필요할 때.</p>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" id="cardB" onclick="select('b')">
+    <div class="card-label"><span class="badge">B</span> 자가야드 + 임차야드 + 총재고 (선 3개)</div>
+    <canvas id="chartB" height="180"></canvas>
+    <p class="card-desc">야드별 재고 흐름 비교 가능. 어느 야드가 포화 임박인지 확인.</p>
+  </div>
+</div>
+
+<div class="indicator" id="indicator" style="display:none">
+  선택됨: <span id="choiceLabel"></span>
+</div>
+
+<script>
+// 샘플 데이터 생성 (60일치 시뮬레이션)
+const labels = [];
+const selfData = [];
+const rentData = [];
+const totalData = [];
+
+const today = new Date();
+let self = 120000, rent = 60000;
+for (let i = 0; i < 60; i++) {
+  const d = new Date(today);
+  d.setDate(d.getDate() + i);
+  labels.push(`${d.getMonth()+1}/${d.getDate()}`);
+  // 반입 (3척 시뮬레이션)
+  const selfIn = (i === 5 || i === 20 || i === 40) ? 55000 : 0;
+  const rentIn = (i === 15 || i === 45) ? 40000 : 0;
+  self = Math.max(0, self + selfIn - 4600);
+  rent = Math.max(0, rent + rentIn - 1500);
+  selfData.push(Math.round(self));
+  rentData.push(Math.round(rent));
+  totalData.push(Math.round(self + rent));
+}
+
+const commonOpts = {
+  responsive: true,
+  plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } } },
+  scales: {
+    x: { ticks: { font: { size: 10 }, maxTicksLimit: 10 } },
+    y: { ticks: { font: { size: 10 }, callback: v => (v/1000).toFixed(0)+'천t' } }
+  },
+  elements: { point: { radius: 0 } },
+  animation: false
+};
+
+// Chart A — 총재고만
+new Chart(document.getElementById('chartA'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      label: '총재고',
+      data: totalData,
+      borderColor: '#2563eb',
+      backgroundColor: 'rgba(37,99,235,.08)',
+      fill: true,
+      tension: 0.3,
+      borderWidth: 2
+    }]
+  },
+  options: commonOpts
+});
+
+// Chart B — 3개 선
+new Chart(document.getElementById('chartB'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: '자가야드',
+        data: selfData,
+        borderColor: '#16a34a',
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        borderWidth: 2
+      },
+      {
+        label: '임차야드',
+        data: rentData,
+        borderColor: '#d97706',
+        backgroundColor: 'transparent',
+        tension: 0.3,
+        borderWidth: 2,
+        borderDash: [5,3]
+      },
+      {
+        label: '총재고',
+        data: totalData,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,.06)',
+        fill: true,
+        tension: 0.3,
+        borderWidth: 2.5
+      }
+    ]
+  },
+  options: commonOpts
+});
+
+let chosen = null;
+function select(v) {
+  chosen = v;
+  document.getElementById('cardA').classList.toggle('selected', v === 'a');
+  document.getElementById('cardB').classList.toggle('selected', v === 'b');
+  const label = v === 'a' ? 'A — 총재고만' : 'B — 선 3개 (자가+임차+총재고)';
+  document.getElementById('choiceLabel').textContent = label;
+  document.getElementById('indicator').style.display = 'block';
+  // visual companion event
+  if (window.recordChoice) window.recordChoice(v, label);
+}
+</script>
+</body>
+</html>
