@@ -45,120 +45,69 @@ _ALLOWED_ITEM_TABLES = frozenset({"schedule_items", "banchu_items"})
 _ALLOWED_SIM_MODES = frozenset({"overall", "import"})
 
 
-def _db_dsn() -> str | None:
-    u = (os.environ.get("DATABASE_URL") or "").strip()
-    return u or None
+def _supabase_db_client():
+    """supabase-py 클라이언트 반환. SUPABASE_URL/KEY 미설정 시 None."""
+    from supabase import create_client
+    url = (os.environ.get("SUPABASE_URL") or "").strip()
+    key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
+    if not url or not key:
+        return None
+    return create_client(url, key)
 
 
 def _ensure_schedule_banchu_tables() -> None:
-    """schedule_items, banchu_items 테이블이 없으면 생성."""
-    dsn = _db_dsn()
-    if not dsn:
-        return
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS schedule_items (
-                    id TEXT PRIMARY KEY,
-                    data JSONB NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS banchu_items (
-                    id TEXT PRIMARY KEY,
-                    data JSONB NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        conn.commit()
+    """테이블은 Supabase SQL 에디터에서 수동 생성됨. No-op."""
 
 
 def _db_fetch_items(table: str) -> list[tuple]:
     """테이블에서 모든 아이템 data 컬럼 반환."""
     if table not in _ALLOWED_ITEM_TABLES:
         raise ValueError(f"허용되지 않은 테이블: {table}")
-    dsn = _db_dsn()
-    if not dsn:
+    client = _supabase_db_client()
+    if not client:
         return []
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"SELECT data FROM {table} ORDER BY updated_at")
-            return cur.fetchall()
+    res = client.table(table).select("data").order("updated_at").execute()
+    return [(row["data"],) for row in (res.data or [])]
 
 
 def _db_save_items(table: str, items: list[dict[str, Any]]) -> None:
     """테이블 전체를 items로 교체 저장 (DELETE → INSERT)."""
     if table not in _ALLOWED_ITEM_TABLES:
         raise ValueError(f"허용되지 않은 테이블: {table}")
-    dsn = _db_dsn()
-    if not dsn:
+    client = _supabase_db_client()
+    if not client:
         return
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"DELETE FROM {table}")
-            for item in items:
-                item_id = str(item.get("id") or "")
-                if not item_id:
-                    continue
-                cur.execute(
-                    f"INSERT INTO {table} (id, data, updated_at) VALUES (%s, %s, NOW())",
-                    (item_id, json.dumps(item, ensure_ascii=False)),
-                )
-        conn.commit()
+    client.table(table).delete().neq("id", "").execute()
+    rows = [
+        {"id": str(item.get("id") or ""), "data": item}
+        for item in items
+        if item.get("id")
+    ]
+    if rows:
+        client.table(table).insert(rows).execute()
 
 
 def _ensure_yard_sim_table() -> None:
-    """yard_sim_settings 테이블이 없으면 생성."""
-    dsn = _db_dsn()
-    if not dsn:
-        return
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS yard_sim_settings (
-                    mode TEXT PRIMARY KEY,
-                    data JSONB NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        conn.commit()
+    """테이블은 Supabase SQL 에디터에서 수동 생성됨. No-op."""
 
 
 def _db_get_yard_sim(mode: str) -> dict | None:
     """해당 모드 SIM 설정 반환. 없으면 None."""
-    dsn = _db_dsn()
-    if not dsn:
+    client = _supabase_db_client()
+    if not client:
         return None
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT data FROM yard_sim_settings WHERE mode = %s", (mode,))
-            row = cur.fetchone()
-            return row[0] if row else None
+    res = client.table("yard_sim_settings").select("data").eq("mode", mode).execute()
+    if res.data:
+        return res.data[0]["data"]
+    return None
 
 
 def _db_save_yard_sim(mode: str, data: dict) -> None:
     """해당 모드 SIM 설정 저장 (upsert)."""
-    dsn = _db_dsn()
-    if not dsn:
+    client = _supabase_db_client()
+    if not client:
         return
-    import psycopg
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO yard_sim_settings (mode, data, updated_at)
-                VALUES (%s, %s, NOW())
-                ON CONFLICT (mode) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
-                """,
-                (mode, json.dumps(data, ensure_ascii=False)),
-            )
-        conn.commit()
+    client.table("yard_sim_settings").upsert({"mode": mode, "data": data}).execute()
 
 
 UNLOADING_COAL_SHEET = "석탄(년)"
