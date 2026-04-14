@@ -1,4 +1,4 @@
-"""플랫폼 로그인 계정(JSON), 관리자 비밀번호, 감사 로그(JSONL)."""
+"""플랫폼 로그인 계정(JSON 또는 DATABASE_URL 시 PostgreSQL), 감사 로그(JSONL)."""
 
 from __future__ import annotations
 
@@ -17,15 +17,6 @@ USERS_PATH = BASE_DIR / "data" / "platform_users.json"
 AUDIT_PATH = BASE_DIR / "data" / "platform_audit.jsonl"
 
 
-def platform_admin_username() -> str:
-    """톱니바퀴·계정 관리 API에 쓰는 플랫폼 관리자 로그인 아이디."""
-    return (os.environ.get("PLATFORM_ADMIN_USERNAME") or "admin").strip()
-
-
-def session_secret() -> str:
-    return (os.environ.get("SESSION_SECRET") or "dev-insecure-change-me").strip()
-
-
 def _hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
 
@@ -35,6 +26,87 @@ def _verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("ascii"))
     except (ValueError, TypeError):
         return False
+
+
+def _database_url() -> str | None:
+    u = (os.environ.get("DATABASE_URL") or "").strip()
+    return u or None
+
+
+def _ensure_platform_users_table(cur: Any) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS platform_users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL
+        )
+        """
+    )
+
+
+def _load_users_pg() -> dict[str, Any]:
+    import psycopg
+
+    dsn = _database_url()
+    if not dsn:
+        raise RuntimeError("DATABASE_URL이 없습니다.")
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            _ensure_platform_users_table(cur)
+        conn.commit()
+        with conn.cursor() as cur:
+            cur.execute("SELECT username, password_hash FROM platform_users ORDER BY username")
+            rows = cur.fetchall()
+            if not rows:
+                boot_u = (os.environ.get("PLATFORM_BOOTSTRAP_USER") or "admin").strip()
+                boot_p = (os.environ.get("PLATFORM_BOOTSTRAP_PASSWORD") or "admin").strip()
+                if not boot_u:
+                    boot_u = "admin"
+                h = _hash_password(boot_p)
+                cur.execute(
+                    "INSERT INTO platform_users (username, password_hash) VALUES (%s, %s)",
+                    (boot_u, h),
+                )
+                conn.commit()
+                return {"users": [{"username": boot_u, "password_hash": h}]}
+            users: list[dict[str, Any]] = [
+                {"username": str(r[0]), "password_hash": str(r[1])} for r in rows
+            ]
+            return {"users": users}
+
+
+def _save_users_pg(data: dict[str, Any]) -> None:
+    import psycopg
+
+    dsn = _database_url()
+    if not dsn:
+        raise RuntimeError("DATABASE_URL이 없습니다.")
+    users: list[dict[str, Any]] = list(data.get("users") or [])
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            _ensure_platform_users_table(cur)
+            cur.execute("DELETE FROM platform_users")
+            for row in users:
+                if not isinstance(row, dict):
+                    continue
+                u = (row.get("username") or "").strip()
+                h = row.get("password_hash") or ""
+                if not u or not isinstance(h, str) or not h:
+                    continue
+                cur.execute(
+                    "INSERT INTO platform_users (username, password_hash) VALUES (%s, %s)",
+                    (u, h),
+                )
+        conn.commit()
+
+
+def platform_admin_username() -> str:
+    """톱니바퀴·계정 관리 API에 쓰는 플랫폼 관리자 로그인 아이디."""
+    return (os.environ.get("PLATFORM_ADMIN_USERNAME") or "admin").strip()
+
+
+def session_secret() -> str:
+    return (os.environ.get("SESSION_SECRET") or "dev-insecure-change-me").strip()
 
 
 def client_ip(request: Request) -> str:
@@ -63,6 +135,8 @@ def audit_write(request: Request, user: Optional[str], action: str, detail: str 
 
 
 def load_users_data() -> dict[str, Any]:
+    if _database_url():
+        return _load_users_pg()
     USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not USERS_PATH.exists():
         boot_u = (os.environ.get("PLATFORM_BOOTSTRAP_USER") or "admin").strip()
@@ -77,6 +151,9 @@ def load_users_data() -> dict[str, Any]:
 
 
 def save_users_data(data: dict[str, Any]) -> None:
+    if _database_url():
+        _save_users_pg(data)
+        return
     USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
     USERS_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 

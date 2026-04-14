@@ -123,7 +123,7 @@ ISSUE_CATEGORY_RULES = {
     ],
 }
 ISSUE_CATEGORIES = list(ISSUE_CATEGORY_RULES.keys()) + ["기타"]
-UPLOAD_NAME_PATTERN = re.compile(r"^(?P<year>\d{4})_하역률\.(?P<ext>xls|xlsx)$", re.IGNORECASE)
+UPLOAD_NAME_PATTERN = re.compile(r"^(?P<year>\d{4})_unloading\.(?P<ext>xls|xlsx)$", re.IGNORECASE)
 
 
 def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
@@ -1721,15 +1721,24 @@ async def upload_unloading_excel(request: Request, file: UploadFile = File(...))
     if not match:
         raise HTTPException(status_code=400, detail="파일명에 연도(YYYY)가 포함되어야 합니다.")
     year = match.group(1)
-    target_name = f"{year}_하역률{ext}"
+    target_name = f"{year}_unloading{ext}"
 
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
 
+    content_type = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        if ext == ".xlsx"
+        else "application/vnd.ms-excel"
+    )
     bucket = _storage_client()
     try:
-        bucket.upload(target_name, content, {"upsert": "true"})
+        bucket.upload(
+            path=target_name,
+            file=content,
+            file_options={"content-type": content_type, "upsert": "true"},
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Storage 업로드 실패: {e}")
 
