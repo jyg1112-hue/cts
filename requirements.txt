@@ -18,6 +18,9 @@ langgraph==0.6.11
 rank-bm25==0.2.2
 sentence-transformers==5.1.2
 
+# --- Supabase Storage ---
+supabase==2.15.1
+
 # --- PostgreSQL (DATABASE_URL 설정 시; 미설정 시 SQLite 파일) ---
 sqlalchemy==2.0.36
 psycopg[binary]==3.2.4
