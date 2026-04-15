@@ -1092,11 +1092,11 @@ function renderStats(shouldScrollTimeline = true) {
     .filter(i => {
       if (i.type !== 'ship') return false;
       const s = parseDT(i.start), e = parseDT(i.end);
-      return s && e && e > monthStart && s < monthEnd;
+      return s && e && e > monthStart && s < periodEnd;
     })
     .map(i => [
       Math.max(parseDT(i.start).getTime(), monthStart.getTime()),
-      Math.min(parseDT(i.end).getTime(),   monthEnd.getTime()),
+      Math.min(parseDT(i.end).getTime(),   periodEnd.getTime()),
     ])
     .filter(([s, e]) => e > s)
     .sort((a, b) => a[0] - b[0]);
