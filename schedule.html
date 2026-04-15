@@ -1087,22 +1087,31 @@ function renderStats(shouldScrollTimeline = true) {
   const nickelBL  = completedInMonth.filter(i => i.cargoType === '니켈').reduce((a, s) => a + (parseFloat(s.bl) || 0), 0);
   const fmtT = n => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
 
-  // 안벽 점유율: 해당 월과 일정이 겹치는 선박의 월 내 점유 시간 합산
-  const overlapShips = items.filter(i => {
-    if (i.type !== 'ship') return false;
-    const s = parseDT(i.start), e = parseDT(i.end);
-    return s && e && e > monthStart && s < monthEnd;
-  });
+  // 안벽 점유율: 해당 월과 겹치는 선박 구간의 합집합(union)으로 계산 (중복 방지)
+  const overlapIntervals = items
+    .filter(i => {
+      if (i.type !== 'ship') return false;
+      const s = parseDT(i.start), e = parseDT(i.end);
+      return s && e && e > monthStart && s < monthEnd;
+    })
+    .map(i => [
+      Math.max(parseDT(i.start).getTime(), monthStart.getTime()),
+      Math.min(parseDT(i.end).getTime(),   monthEnd.getTime()),
+    ])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0]);
+
   let occupancyMs = 0;
-  overlapShips.forEach(ship => {
-    const sStart  = parseDT(ship.start);
-    const sEnd    = new Date(parseDT(ship.end).getTime() + 3600000); // +1h 출항
-    const ovStart = Math.max(sStart.getTime(), monthStart.getTime());
-    const ovEnd   = Math.min(sEnd.getTime(),   monthEnd.getTime());
-    if (ovEnd > ovStart) occupancyMs += ovEnd - ovStart;
-  });
+  let uStart = null, uEnd = null;
+  for (const [s, e] of overlapIntervals) {
+    if (uStart === null) { uStart = s; uEnd = e; }
+    else if (s <= uEnd)  { uEnd = Math.max(uEnd, e); }
+    else                 { occupancyMs += uEnd - uStart; uStart = s; uEnd = e; }
+  }
+  if (uStart !== null) occupancyMs += uEnd - uStart;
+
   const occupancyHrs  = occupancyMs / 3600000;
-  const occupancyRate = elapsedHrs > 0 ? Math.min(100, occupancyHrs / elapsedHrs * 100).toFixed(1) : '0.0';
+  const occupancyRate = elapsedHrs > 0 ? (occupancyHrs / elapsedHrs * 100).toFixed(1) : '0.0';
 
   document.getElementById('statsItems').innerHTML = `
     <div class="stat">
