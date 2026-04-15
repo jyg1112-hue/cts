@@ -280,6 +280,12 @@
       background: #2563eb;
       color: #fff;
       border-color: #2563eb;
+      cursor: pointer;
+    }
+    .filter-btn.apply:disabled {
+      background: #93c5fd;
+      border-color: #93c5fd;
+      cursor: not-allowed;
     }
     .kpis {
       display: grid;
@@ -2142,21 +2148,37 @@
         renderBrandSelect();
       });
       startYear.addEventListener("change", (e) => {
-        state.startYear = Number(e.target.value);
-        if (state.startYear > state.endYear) state.endYear = state.startYear;
-        renderYearSelects();
+        state.startYear = Number(e.target.value) || null;
+        if (state.startYear && state.endYear && state.startYear > state.endYear) {
+          state.endYear = state.startYear;
+          endYear.value = String(state.endYear);
+        }
       });
       endYear.addEventListener("change", (e) => {
-        state.endYear = Number(e.target.value);
-        if (state.endYear < state.startYear) state.startYear = state.endYear;
-        renderYearSelects();
+        state.endYear = Number(e.target.value) || null;
+        if (state.startYear && state.endYear && state.endYear < state.startYear) {
+          state.startYear = state.endYear;
+          startYear.value = String(state.startYear);
+        }
       });
       brands.addEventListener("change", (e) => {
         state.selectedBrandsInput = e.target.value || "";
       });
       applyFilterBtn.addEventListener("click", async () => {
-        await refreshSummary();
-        await refreshSupplyNews();
+        // DOM에서 직접 상태 동기화 (이벤트 타이밍 문제 방지)
+        state.cargoType = cargoType.value;
+        state.startYear = Number(startYear.value) || null;
+        state.endYear = Number(endYear.value) || null;
+        state.selectedBrandsInput = brands.value || "";
+        applyFilterBtn.disabled = true;
+        applyFilterBtn.textContent = "적용 중...";
+        try {
+          await refreshSummary();
+          await refreshSupplyNews();
+        } finally {
+          applyFilterBtn.disabled = false;
+          applyFilterBtn.textContent = "적용";
+        }
       });
       resetFilterBtn.addEventListener("click", async () => {
         state.cargoType = "coal";
@@ -2221,7 +2243,6 @@
     async function refreshSummary() {
       try {
         state.summary = await fetchSummary();
-        renderYearSelects();
         renderAll();
       } catch (error) {
         console.error(error);

@@ -28,76 +28,56 @@ def _verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def _database_url() -> str | None:
-    u = (os.environ.get("DATABASE_URL") or "").strip()
-    return u or None
+def _supabase_client() -> Any:
+    from supabase import create_client
+    url = (os.environ.get("SUPABASE_URL") or "").strip()
+    key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
+    if not url or not key:
+        return None
+    return create_client(url, key)
 
 
-def _ensure_platform_users_table(cur: Any) -> None:
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS platform_users (
-            username TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL
-        )
-        """
-    )
+def _use_supabase() -> bool:
+    url = (os.environ.get("SUPABASE_URL") or "").strip()
+    key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
+    return bool(url and key)
 
 
 def _load_users_pg() -> dict[str, Any]:
-    import psycopg
-
-    dsn = _database_url()
-    if not dsn:
-        raise RuntimeError("DATABASE_URL이 없습니다.")
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            _ensure_platform_users_table(cur)
-        conn.commit()
-        with conn.cursor() as cur:
-            cur.execute("SELECT username, password_hash FROM platform_users ORDER BY username")
-            rows = cur.fetchall()
-            if not rows:
-                boot_u = (os.environ.get("PLATFORM_BOOTSTRAP_USER") or "admin").strip()
-                boot_p = (os.environ.get("PLATFORM_BOOTSTRAP_PASSWORD") or "admin").strip()
-                if not boot_u:
-                    boot_u = "admin"
-                h = _hash_password(boot_p)
-                cur.execute(
-                    "INSERT INTO platform_users (username, password_hash) VALUES (%s, %s)",
-                    (boot_u, h),
-                )
-                conn.commit()
-                return {"users": [{"username": boot_u, "password_hash": h}]}
-            users: list[dict[str, Any]] = [
-                {"username": str(r[0]), "password_hash": str(r[1])} for r in rows
-            ]
-            return {"users": users}
+    client = _supabase_client()
+    if not client:
+        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY가 없습니다.")
+    res = client.table("platform_users").select("username, password_hash").order("username").execute()
+    rows = res.data or []
+    if not rows:
+        boot_u = (os.environ.get("PLATFORM_BOOTSTRAP_USER") or "admin").strip() or "admin"
+        boot_p = (os.environ.get("PLATFORM_BOOTSTRAP_PASSWORD") or "admin").strip()
+        h = _hash_password(boot_p)
+        client.table("platform_users").insert({"username": boot_u, "password_hash": h}).execute()
+        return {"users": [{"username": boot_u, "password_hash": h}]}
+    users: list[dict[str, Any]] = [
+        {"username": str(r["username"]), "password_hash": str(r["password_hash"])} for r in rows
+    ]
+    return {"users": users}
 
 
 def _save_users_pg(data: dict[str, Any]) -> None:
-    import psycopg
-
-    dsn = _database_url()
-    if not dsn:
-        raise RuntimeError("DATABASE_URL이 없습니다.")
+    client = _supabase_client()
+    if not client:
+        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY가 없습니다.")
     users: list[dict[str, Any]] = list(data.get("users") or [])
-    with psycopg.connect(dsn) as conn:
-        with conn.cursor() as cur:
-            _ensure_platform_users_table(cur)
-            cur.execute("DELETE FROM platform_users")
-            for row in users:
-                if not isinstance(row, dict):
-                    continue
-                u = (row.get("username") or "").strip()
-                h = row.get("password_hash") or ""
-                if not u or not isinstance(h, str) or not h:
-                    continue
-                cur.execute(
-                    "INSERT INTO platform_users (username, password_hash) VALUES (%s, %s)",
-                    (u, h),
-                )
-        conn.commit()
+    client.table("platform_users").delete().neq("username", "").execute()
+    rows = []
+    for row in users:
+        if not isinstance(row, dict):
+            continue
+        u = (row.get("username") or "").strip()
+        h = row.get("password_hash") or ""
+        if not u or not isinstance(h, str) or not h:
+            continue
+        rows.append({"username": u, "password_hash": h})
+    if rows:
+        client.table("platform_users").insert(rows).execute()
 
 
 def platform_admin_username() -> str:
@@ -135,7 +115,7 @@ def audit_write(request: Request, user: Optional[str], action: str, detail: str 
 
 
 def load_users_data() -> dict[str, Any]:
-    if _database_url():
+    if _use_supabase():
         return _load_users_pg()
     USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not USERS_PATH.exists():
@@ -151,7 +131,7 @@ def load_users_data() -> dict[str, Any]:
 
 
 def save_users_data(data: dict[str, Any]) -> None:
-    if _database_url():
+    if _use_supabase():
         _save_users_pg(data)
         return
     USERS_PATH.parent.mkdir(parents=True, exist_ok=True)
