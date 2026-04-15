@@ -217,15 +217,12 @@ def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> N
 
 
 def _storage_client():
-    """Supabase Storage 버킷 클라이언트 반환."""
+    """Supabase Storage 버킷 클라이언트 반환. 환경변수 없으면 None."""
     from supabase import create_client
     url = (os.environ.get("SUPABASE_URL") or "").strip()
     key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip()
     if not url or not key:
-        raise HTTPException(
-            status_code=500,
-            detail="SUPABASE_URL 또는 SUPABASE_SERVICE_KEY 환경변수가 설정되지 않았습니다.",
-        )
+        return None
     return create_client(url, key).storage.from_(SUPABASE_BUCKET)
 
 
@@ -233,10 +230,10 @@ def _uploaded_storage_files() -> list[dict[str, Any]]:
     """Storage 버킷에서 패턴에 맞는 파일 목록 반환. 오류 시 빈 리스트."""
     try:
         bucket = _storage_client()
+        if bucket is None:
+            return []
         files = bucket.list()
         return [f for f in (files or []) if UPLOAD_NAME_PATTERN.match(f.get("name", ""))]
-    except HTTPException:
-        raise
     except Exception:
         return []
 

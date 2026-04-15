@@ -119,9 +119,17 @@ body {
 
 /* ── TIMELINE OUTER ── */
 .timeline-outer {
+  overflow: auto;
+  min-height: 0; flex: 1;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+.tl-zoom {
   display: flex; flex-direction: column;
-  overflow-y: auto; overflow-x: hidden;
-  padding: 12px; gap: 8px; min-height: 0; flex: 1;
+  padding: 12px; gap: 8px;
+  transform-origin: 0 0;
+  width: max-content;
+  min-width: 100%;
 }
 .tl-row-group { display: flex; flex-shrink: 0; }
 .tl-row-content {
@@ -1159,6 +1167,10 @@ function render() {
 
   const outer = document.getElementById('tlOuter');
   outer.innerHTML = '';
+  const tlZoom = document.createElement('div');
+  tlZoom.className = 'tl-zoom';
+  tlZoom.id = 'tlZoom';
+  outer.appendChild(tlZoom);
 
   for (let row = 0; row < nRows; row++) {
     const rsd = row * DAYS_PER_ROW;
@@ -1295,7 +1307,7 @@ function render() {
     rc.appendChild(berthRow);
     rg.appendChild(sidebar);
     rg.appendChild(rc);
-    outer.appendChild(rg);
+    tlZoom.appendChild(rg);
   }
 
   _berthRows = Array.from(document.querySelectorAll('.tl-berth-row'));
@@ -2453,6 +2465,46 @@ if (items.length === 0) {
   save();
   initRange(); render(); scrollToToday();
   window.addEventListener('resize', render);
+
+  // ── 모바일 핀치-투-줌 ──────────────────────────────────
+  (function initPinchZoom() {
+    const outerEl = document.getElementById('tlOuter');
+    if (!outerEl) return;
+    let lastDist = null;
+    let currentScale = 1;
+    const MIN_SCALE = 0.4, MAX_SCALE = 3;
+
+    function getZoomEl() { return document.getElementById('tlZoom'); }
+
+    outerEl.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        lastDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    outerEl.addEventListener('touchmove', e => {
+      if (e.touches.length === 2 && lastDist !== null) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const ratio = dist / lastDist;
+        currentScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, currentScale * ratio));
+        const zEl = getZoomEl();
+        if (zEl) zEl.style.transform = `scale(${currentScale})`;
+        lastDist = dist;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    outerEl.addEventListener('touchend', e => {
+      if (e.touches.length < 2) lastDist = null;
+    });
+  })();
 })();
 </script>
 </body>
