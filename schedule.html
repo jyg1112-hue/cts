@@ -2406,50 +2406,53 @@ function scrollToToday() {
 }
 
 // ══════════════════════════════════════════
-//  SAMPLE DATA
-// ══════════════════════════════════════════
-if (items.length === 0) {
-  const n = new Date(), Y=n.getFullYear(), M=n.getMonth(), D=n.getDate();
-  items = [
-    {
-      id:'s1', type:'ship', name:'SM Diamond',
-      start: toDTLocal(new Date(Y,M,D-1,8,0)),
-      end:   toDTLocal(new Date(Y,M,D+2,16,0)),
-      cargoType:'석탄', origin:'호주', bl:63, rate:30,
-      customer:'포스코', color:'#3b82f6',
-    },
-    {
-      id:'m1', type:'maint', name:'장비청소',
-      start: toDTLocal(new Date(Y,M,D+2,16,0)),
-      end:   toDTLocal(new Date(Y,M,D+3,0,0)),
-    },
-    {
-      id:'s2', type:'ship', name:'TIGER NORTH',
-      start: toDTLocal(new Date(Y,M,D+3,6,0)),
-      end:   toDTLocal(new Date(Y,M,D+5,14,0)),
-      cargoType:'니켈', origin:'Poya', bl:55, rate:20,
-      customer:'SNNC', color:'#fb923c',
-    },
-    {
-      id:'s3', type:'ship', name:'AC VICTORY',
-      start: toDTLocal(new Date(Y,M,D-10,10,0)),
-      end:   toDTLocal(new Date(Y,M,D-8,6,0)),
-      cargoType:'석탄', origin:'인니', bl:70, rate:30,
-      customer:'한화에너지', color:'#9ca3af',
-    },
-  ];
-  save();
-}
-
-// ══════════════════════════════════════════
 //  INIT (async — DB에서 로드)
 // ══════════════════════════════════════════
 (async function init() {
   try {
     const res = await fetch('/api/schedule');
-    if (res.ok) items = await res.json();
+    if (res.ok) {
+      const loaded = await res.json();
+      if (Array.isArray(loaded) && loaded.length > 0) {
+        items = loaded;
+      }
+    }
   } catch (e) {
     console.warn('스케줄 로드 실패:', e);
+  }
+
+  // API에 데이터가 없으면 샘플 데이터로 초기화
+  if (items.length === 0) {
+    const n = new Date(), Y=n.getFullYear(), M=n.getMonth(), D=n.getDate();
+    items = [
+      {
+        id:'s1', type:'ship', name:'SM Diamond',
+        start: toDTLocal(new Date(Y,M,D-1,8,0)),
+        end:   toDTLocal(new Date(Y,M,D+2,16,0)),
+        cargoType:'석탄', origin:'호주', bl:63, rate:30,
+        customer:'포스코', color:'#3b82f6',
+      },
+      {
+        id:'m1', type:'maint', name:'장비청소',
+        start: toDTLocal(new Date(Y,M,D+2,16,0)),
+        end:   toDTLocal(new Date(Y,M,D+3,0,0)),
+      },
+      {
+        id:'s2', type:'ship', name:'TIGER NORTH',
+        start: toDTLocal(new Date(Y,M,D+3,6,0)),
+        end:   toDTLocal(new Date(Y,M,D+5,14,0)),
+        cargoType:'니켈', origin:'Poya', bl:55, rate:20,
+        customer:'SNNC', color:'#fb923c',
+      },
+      {
+        id:'s3', type:'ship', name:'AC VICTORY',
+        start: toDTLocal(new Date(Y,M,D-10,10,0)),
+        end:   toDTLocal(new Date(Y,M,D-8,6,0)),
+        cargoType:'석탄', origin:'인니', bl:70, rate:30,
+        customer:'한화에너지', color:'#9ca3af',
+      },
+    ];
+    save();
   }
 
   // 정기정비 → 정비 마이그레이션
@@ -2461,8 +2464,10 @@ if (items.length === 0) {
   });
   if (migrated) save();
 
+  const beforeResolve = JSON.stringify(items);
   resolveBerthNonOverlap();
-  save();
+  if (JSON.stringify(items) !== beforeResolve) save();
+
   initRange(); render(); scrollToToday();
   window.addEventListener('resize', render);
 
