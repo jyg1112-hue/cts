@@ -1,0 +1,11 @@
+# Railway: https://docs.railway.com/reference/config-as-code
+# 단일 웹 서비스(FastAPI + 정적 HTML)용
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"

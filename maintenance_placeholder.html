@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>정비 관리 — 선석 운영 플랫폼</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Noto Sans KR", sans-serif;
+      background: #fff;
+      color: #1a2236;
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+    .inner { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+    p { font-size: 0.875rem; font-weight: 300; color: #6b7a99; margin-bottom: 24px; line-height: 1.5; }
+    a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="inner">
+    <h1 id="page-title">정비 관리</h1>
+    <p>이 화면은 곧 실제 기능과 연결될 예정입니다.</p>
+    <a href="/">← 메인으로</a>
+  </div>
+  <script>
+    (function () {
+      var path = location.pathname;
+      var title = document.getElementById("page-title");
+      if (path.indexOf("equipment") !== -1) title.textContent = "장비 현황";
+      else if (path.indexOf("history") !== -1) title.textContent = "정비 이력";
+    })();
+  </script>
+</body>
+</html>

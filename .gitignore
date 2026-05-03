@@ -1,0 +1,20 @@
+.env
+.env.*
+!.env.example
+
+.venv/
+.superpowers/
+__pycache__/
+*.pyc
+.Python
+.DS_Store
+*.log
+~$*
+
+# 하역 챗봇 로컬 인덱스 (재생성)
+data/processed/*
+!data/processed/.gitkeep
+
+# 플랫폼 로그인·감사 로그 (로컬 전용)
+data/platform_users.json
+data/platform_audit.jsonl

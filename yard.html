@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>야드 시뮬레이션</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', sans-serif; background: #f3f4f6; color: #111827; min-height: 100vh; }
+
+/* ── HEADER ── */
+.app-header {
+  background: #1a3a5c; color: #fff;
+  padding: 12px 18px;
+  display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  flex-wrap: wrap; gap: 8px;
+}
+.header-left  { display: flex; gap: 10px; align-items: center; }
+.header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.app-header h1 { font-size: 17px; }
+.page-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #0f172a;
+  background: #fff;
+}
+.header-summary { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.header-summary .hs { font-size: 12px; }
+.header-summary .hs strong { font-size: 13px; }
+.header-meta { font-size: 11px; color: #93c5fd; }
+
+/* ── BUTTONS ── */
+.btn { border: none; border-radius: 6px; padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity .15s; font-family: inherit; }
+.btn:hover { opacity: .85; }
+.btn-blue  { background: #2563eb; color: #fff; }
+.btn-gray  { background: #6b7280; color: #fff; }
+.btn-red   { background: #ef4444; color: #fff; }
+
+/* ── MAIN WRAPPER ── */
+.main-wrap { padding: 14px 16px; }
+
+/* ── TABLE CARD ── */
+.card { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,.08); border: 1px solid #e5e7eb; overflow: hidden; }
+.scroll-x { overflow-x: auto; }
+
+/* ── SIMULATION TABLE ── */
+/* fixed: 열 너비를 내용(특히 input)에 맡기지 않아 편집 시 열이 늘어나지 않음 */
+.sim-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 960px;
+  width: 100%;
+  table-layout: fixed;
+}
+.sim-table col.sim-col-date { width: 7.25rem; }
+.sim-table col.sim-col-num { width: auto; }
+.sim-table th, .sim-table td {
+  border: 1px solid #e5e7eb; padding: 6px 8px;
+  text-align: center; white-space: nowrap;
+}
+/* 편집 가능 셀: 테이블 셀 기본 min-width:min-content 때문에 input이 열을 넓히는 것 방지 */
+.sim-table td[data-yard][data-cell] {
+  min-width: 0;
+  overflow: hidden;
+  vertical-align: middle;
+  position: relative;
+}
+.sim-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; z-index: 2; }
+/* 그룹 헤더 */
+.sim-table .gh-self  { background: #1a3a5c; color: #fff; text-align: center; }
+.sim-table .gh-rent  { background: #1a3a5c; color: #fff; text-align: center; }
+.sim-table .gh-total { background: #1a3a5c; color: #fff; text-align: center; }
+.sim-table .gh-date  { background: #1a3a5c; color: #fff; }
+.fold-btn {
+  border: 1px solid rgba(255,255,255,0.45);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+/* 메인 테이블 인라인 편집: 테두리·박스 강조 없음, 열 폭 안에서만 표시 */
+.sim-table .sim-cell-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: right;
+  font: inherit;
+  font-size: 12px;
+  line-height: inherit;
+  font-family: inherit;
+  padding: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.sim-table .sim-cell-input:focus {
+  outline: none;
+}
+.sim-table .sim-fill-handle {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  background: #64748b;
+  border: 1px solid #fff;
+  border-radius: 1px;
+  cursor: crosshair;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  z-index: 3;
+}
+.sim-table .sim-fill-handle:hover { background: #334155; }
+body.sim-fill-dragging { user-select: none; cursor: crosshair; }
+body.sim-fill-dragging .sim-cell-input { cursor: crosshair; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff; border-radius: 10px; padding: 22px;
+  width: 780px; max-width: 96vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.modal h2 { font-size: 15px; font-weight: 700; color: #1a3a5c; margin-bottom: 16px; }
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* ── SETTINGS MODAL ── */
+.yard-block { border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+.yard-block.self { background: #eff6ff; border: 1px solid #bfdbfe; }
+.yard-block.rent { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.yard-block.silo { background: #fafafa; border: 1px solid #e5e7eb; }
+.yard-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+.yard-title.self { color: #1e40af; }
+.yard-title.rent { color: #166534; }
+.meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; font-size: 12px; }
+.meta-row input { width: 90px; text-align: right; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; font-family: inherit; }
+
+/* 탭 */
+.tab-bar { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 10px; }
+.tab-btn { padding: 6px 16px; font-size: 12px; font-weight: 600; color: #6b7280; border: none; background: none; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.tab-btn.active { color: #1a3a5c; border-bottom-color: #1a3a5c; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 고정 입력 그리드 */
+.fixed-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; font-size: 12px; }
+.fixed-grid label { font-size: 11px; color: #6b7280; display: block; margin-bottom: 3px; }
+.fixed-grid input { width: 100%; text-align: right; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; font-family: inherit; }
+.fixed-total { background: #f3f4f6; padding: 5px 8px; border-radius: 4px; font-weight: 700; text-align: right; color: #dc2626; font-size: 12px; }
+.sea-plan { margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
+.sea-plan table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sea-plan th, .sea-plan td { border: 1px solid #e5e7eb; padding: 5px 6px; text-align: center; }
+.sea-plan th { background: #f8fafc; color: #334155; font-weight: 700; }
+.sea-plan input { width: 100%; text-align: right; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 11px; font-family: inherit; }
+.sea-plan .sea-plan-actions { display: flex; justify-content: flex-end; padding: 6px; background: #f8fafc; }
+
+/* 일별 입력 테이블 */
+.daily-table-wrap { overflow: visible; }
+.daily-table { border-collapse: collapse; font-size: 11px; width: 100%; }
+.daily-table th, .daily-table td { border: 1px solid #e5e7eb; padding: 4px 7px; text-align: right; white-space: nowrap; }
+.daily-table th { background: #f1f5f9; color: #334155; font-weight: 700; position: sticky; top: 0; }
+.daily-table td:first-child, .daily-table th:first-child { text-align: left; }
+.daily-table .daily-input-cell { position: relative; vertical-align: middle; }
+.daily-table .daily-cell-wrap { position: relative; display: inline-block; vertical-align: middle; }
+.daily-table input.daily-num-input {
+  width: 64px; text-align: right; padding: 3px 5px; border: 1px solid #d1d5db; border-radius: 3px; font-size: 11px; font-family: inherit;
+}
+.daily-table .daily-fill-handle {
+  position: absolute; right: -4px; bottom: -3px; width: 7px; height: 7px;
+  background: #64748b; border: 1px solid #fff; border-radius: 1px; cursor: crosshair;
+  box-shadow: 0 0 0 1px #cbd5e1; z-index: 2;
+}
+.daily-table .daily-fill-handle:hover { background: #334155; }
+body.daily-fill-dragging { user-select: none; cursor: crosshair; }
+body.daily-fill-dragging .daily-num-input { cursor: crosshair; }
+
+/* ── OVERWRITE CONFIRM MODAL ── */
+.confirm-msg { font-size: 13px; color: #374151; line-height: 1.7; }
+
+/* ── CHART ── */
+#chartWrap {
+  margin: 12px 18px 0;
+}
+#chartGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+  gap: 10px;
+}
+#chartWrap .card {
+  padding: 16px 18px 12px;
+}
+#chartWrap .chart-main-card { min-height: 380px; position: relative; }
+#chartWrap .chart-side-card { min-height: 380px; }
+#chartWrap .chart-title,
+.section-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a3a5c;
+  margin-bottom: 10px;
+  letter-spacing: -0.01em;
+}
+.card-section-head {
+  padding: 16px 18px 8px;
+}
+.card-table-wrap {
+  padding: 0 12px 12px;
+}
+.card-table-wrap .scroll-x {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+#chartWrap canvas {
+  height: 330px !important;
+  max-height: 330px;
+}
+#chartWrap .chart-legend-inside {
+  position: absolute;
+  right: 22px;
+  top: 20px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 10px;
+  z-index: 4;
+}
+#chartWrap .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 700;
+}
+#chartWrap .legend-line {
+  width: 22px;
+  height: 0;
+  border-top: 3px solid #2563eb;
+  border-radius: 2px;
+}
+#chartWrap .legend-line.green { border-top-color: #16a34a; }
+#chartWrap .chart-side-note {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.summary-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 10px 8px;
+}
+.summary-card .k {
+  font-size: 11px;
+  color: #475569;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.summary-card .v {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.panel-section-title {
+  font-size: 13px;
+  color: #1e293b;
+  font-weight: 800;
+  margin: 6px 0 8px;
+}
+.alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.alert-item {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.alert-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-top: 5px;
+  flex: 0 0 8px;
+}
+.alert-item.danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.alert-item.warning { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.alert-item.info { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.alert-item.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.alert-item.danger .alert-dot { background: #dc2626; }
+.alert-item.warning .alert-dot { background: #f97316; }
+.alert-item.info .alert-dot { background: #2563eb; }
+.alert-item.success .alert-dot { background: #16a34a; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="/js/alertRules.js"></script>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="app-header">
+  <div class="header-left">
+    <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
+    <h1>야드 시뮬레이션</h1>
+    <select id="pageSelect" class="page-select" onchange="onPageModeChange(this.value)">
+      <option value="overall">전체야드</option>
+      <option value="import">반입야드</option>
+    </select>
+  </div>
+  <div class="header-right">
+    <div class="header-summary" id="headerSummary"></div>
+    <span class="header-meta" id="headerMeta"></span>
+    <button class="btn btn-blue" onclick="handleLoad()">반입 계획 불러오기</button>
+    <button class="btn btn-gray" onclick="openSettings()">상세 입력</button>
+  </div>
+</header>
+
+<!-- ── CHART ── -->
+<div id="chartWrap">
+  <div id="chartGrid">
+    <div class="card chart-main-card">
+      <div class="chart-title">야드 재고 추이</div>
+      <div class="chart-legend-inside">
+        <span class="legend-item"><span class="legend-line"></span>전체야드 재고</span>
+        <span class="legend-item"><span class="legend-line green"></span>반입야드(X, Y) 재고</span>
+      </div>
+      <canvas id="stockChartCombined"></canvas>
+    </div>
+    <div class="card chart-side-card">
+      <div class="chart-title">시뮬레이션 요약</div>
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="panel-section-title">경보 현황</div>
+      <div class="alert-list" id="alertList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN TABLE ── -->
+<div class="main-wrap">
+  <div class="card">
+    <div class="card-section-head">
+      <h2 class="section-title" style="margin-bottom:0;">반출입 상세 계획</h2>
+    </div>
+    <div class="card-table-wrap">
+      <div class="scroll-x">
+        <table class="sim-table" id="simTable">
+          <colgroup>
+            <col class="sim-col-date">
+            <col span="13" class="sim-col-num">
+          </colgroup>
+          <thead id="simHead"></thead>
+          <tbody id="simBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETTINGS MODAL ── -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2 id="settingsModalTitle">상세 설정</h2>
+
+    <div id="overallSettingsBlock">
+    <!-- 자가야드 -->
+    <div class="yard-block self">
+      <div class="yard-title self">🏭 자가야드</div>
+      <div class="meta-row">
+        <span>용량</span>
+        <input id="sSelfCapa" type="text" value="248400" class="num-comma">
+        <span>t &nbsp;·&nbsp; 초기 재고</span>
+        <input id="sSelfInit" type="text" value="0" class="num-comma">
+        <span>t</span>
+        <button class="btn btn-blue" type="button" style="padding:6px 10px;font-size:11px;" onclick="saveInboundMeta('self')">저장</button>
+      </div>
+      <div class="tab-panel active" id="self-fixed">
+        <div class="fixed-grid">
+          <div><label>이적반출 (t/일)</label><input id="sSelfTransfer" type="text" value="1200" class="num-comma" oninput="updateFixedTotal('self')"></div>
+          <div><label>육송반출 (t/일)</label><input id="sSelfLand" type="text" value="1800" class="num-comma" oninput="updateFixedTotal('self')"></div>
+          <div><label>해송평균 (t/일)</label><div class="fixed-total" id="sSelfSeaDaily">1,600</div></div>
+          <div><label>반출합 (t/일)</label><div class="fixed-total" id="sSelfTotal">4,600</div></div>
+        </div>
+        <div class="sea-plan">
+          <table>
+            <thead><tr><th>해송 물량(t/회)</th><th>주기(일)</th><th>삭제</th></tr></thead>
+            <tbody id="sSelfSeaPlanBody"></tbody>
+          </table>
+          <div class="sea-plan-actions">
+            <button class="btn btn-gray" type="button" onclick="addSeaPlanRow('self')">행 추가</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 임차야드 -->
+    <div class="yard-block rent">
+      <div class="yard-title rent">🏗️ 임차야드</div>
+      <div class="meta-row">
+        <span>용량</span>
+        <input id="sRentCapa" type="text" value="172800" class="num-comma">
+        <span>t &nbsp;·&nbsp; 초기 재고</span>
+        <input id="sRentInit" type="text" value="0" class="num-comma">
+        <span>t</span>
+        <button class="btn btn-blue" type="button" style="padding:6px 10px;font-size:11px;" onclick="saveInboundMeta('rent')">저장</button>
+      </div>
+      <div class="tab-panel active" id="rent-fixed">
+        <div class="fixed-grid">
+          <div><label>이적반출 (t/일)</label><input id="sRentTransfer" type="text" value="0" class="num-comma" oninput="updateFixedTotal('rent')"></div>
+          <div><label>육송반출 (t/일)</label><input id="sRentLand" type="text" value="0" class="num-comma" oninput="updateFixedTotal('rent')"></div>
+          <div><label>해송평균 (t/일)</label><div class="fixed-total" id="sRentSeaDaily">0</div></div>
+          <div><label>반출합 (t/일)</label><div class="fixed-total" id="sRentTotal">0</div></div>
+        </div>
+        <div class="sea-plan">
+          <table>
+            <thead><tr><th>해송 물량(t/회)</th><th>주기(일)</th><th>삭제</th></tr></thead>
+            <tbody id="sRentSeaPlanBody"></tbody>
+          </table>
+          <div class="sea-plan-actions">
+            <button class="btn btn-gray" type="button" onclick="addSeaPlanRow('rent')">행 추가</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div id="importSettingsBlock" style="display:none;">
+    <div class="yard-block self">
+      <div class="yard-title self">🏭 반입야드</div>
+      <div class="meta-row">
+        <span>용량</span>
+        <input id="iSelfCapa" type="text" value="248400" class="num-comma">
+        <span>t &nbsp;·&nbsp; 초기 재고</span>
+        <input id="iSelfInit" type="text" value="0" class="num-comma">
+        <span>t</span>
+        <button class="btn btn-blue" type="button" style="padding:6px 10px;font-size:11px;" onclick="saveInboundMeta('importSelf')">저장</button>
+      </div>
+      <div class="tab-panel active">
+        <div class="fixed-grid">
+          <div><label>이적반출 (t/일)</label><input id="iSelfTransfer" type="text" value="1200" class="num-comma" oninput="updateImportFixedTotal()"></div>
+          <div><label>육송반출 (t/일)</label><input id="iSelfLand" type="text" value="1800" class="num-comma" oninput="updateImportFixedTotal()"></div>
+          <div><label>silo (t/일)</label><input id="iSelfSilo" type="text" value="0" class="num-comma" oninput="updateImportFixedTotal()"></div>
+          <div><label>CTS이적 (t/일)</label><input id="iSelfCts" type="text" value="0" class="num-comma" oninput="updateImportFixedTotal()"></div>
+          <div><label>P-이적 (t/일)</label><input id="iSelfPTransfer" type="text" value="0" class="num-comma" oninput="updateImportFixedTotal()"></div>
+          <div><label>반출합 (t/일)</label><div class="fixed-total" id="iSelfTotal">3,000</div></div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-red" onclick="applySettingsOverwrite()">덮어쓰기</button>
+      <button class="btn btn-blue" onclick="applySettingsLoad()">불러오기</button>
+      <button class="btn btn-gray" onclick="closeSettings()">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── OVERWRITE CONFIRM MODAL ── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="width:400px;">
+    <h2 id="confirmTitle">반입 데이터 불러오기</h2>
+    <p class="confirm-msg" id="confirmMsg">새 데이터를 불러오시겠습니까?</p>
+    <div class="modal-footer">
+      <button class="btn btn-red" onclick="confirmOverwriteLoad()">덮어쓰기</button>
+      <button class="btn btn-blue" onclick="confirmLoad()">불러오기</button>
+      <button class="btn btn-gray" onclick="closeConfirm()">취소</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────
+const BERTH_KEY    = 'berth7_v6';
+const PAGE_KEY     = 'yard_page_mode_v1';
+
+// DB 캐시 (async IIFE에서 채움)
+let _scheduleCache = [];
+let _simCache = { overall: null, import: null };
+const IMPORT_OUT_COLLAPSE_KEY = 'yard_import_out_collapsed_v1';
+const LEGACY_SIM_KEY = 'yard_sim_v1';
+const SIM_KEYS = {
+  overall: 'yard_sim_overall_v1',
+  import: 'yard_sim_import_v1',
+};
+const SIM_DAYS     = 60;
+const DEFAULT_BL   = 60000;
+const OUT_PART_FIELDS = ['transfer', 'land', 'silo', 'cts', 'pTransfer'];
+
+const DEFAULT_SETTINGS = {
+  selfYard: {
+    capa: 248400, initStock: 0, outMode: 'fixed',
+    outFixed: { transfer: 1200, land: 1800, seaPlans: [{ ton: 1600, cycleDays: 1 }], silo: 0, cts: 0, pTransfer: 0 },
+    outDaily: {}
+  },
+  rentYard: {
+    capa: 172800, initStock: 0, outMode: 'fixed',
+    outFixed: { transfer: 0, land: 0, seaPlans: [{ ton: 0, cycleDays: 1 }], silo: 0, cts: 0, pTransfer: 0 },
+    outDaily: {}
+  },
+  silo: { currentStock: 0 },
+  autoInbound: {},
+  manualInbound: {},
+  manualOutbound: {},
+  manualOutboundDetail: {},
+  lastFetched: null
+};
+
+// ─────────────────────────────────────────
+//  SETTINGS PERSISTENCE
+// ─────────────────────────────────────────
+function loadSimSettings(mode = getPageMode()) {
+  try {
+    const parsed = _simCache[mode];
+    if (!parsed) return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    const d = DEFAULT_SETTINGS;
+    return {
+      selfYard: {
+        ...d.selfYard,
+        ...parsed.selfYard,
+        outFixed: {
+          ...d.selfYard.outFixed,
+          ...(parsed.selfYard?.outFixed || {}),
+          seaPlans: Array.isArray(parsed.selfYard?.outFixed?.seaPlans)
+            ? parsed.selfYard.outFixed.seaPlans
+            : [{ ton: Number(parsed.selfYard?.outFixed?.sea || 0) || 0, cycleDays: 1 }],
+          silo: Number(parsed.selfYard?.outFixed?.silo ?? parsed.selfYard?.outFixed?.sea ?? d.selfYard.outFixed.silo) || 0,
+          cts: Number(parsed.selfYard?.outFixed?.cts ?? d.selfYard.outFixed.cts) || 0,
+          pTransfer: Number(parsed.selfYard?.outFixed?.pTransfer ?? d.selfYard.outFixed.pTransfer) || 0,
+        },
+        outDaily: parsed.selfYard?.outDaily || {},
+      },
+      rentYard: {
+        ...d.rentYard,
+        ...parsed.rentYard,
+        outFixed: {
+          ...d.rentYard.outFixed,
+          ...(parsed.rentYard?.outFixed || {}),
+          seaPlans: Array.isArray(parsed.rentYard?.outFixed?.seaPlans)
+            ? parsed.rentYard.outFixed.seaPlans
+            : [{ ton: Number(parsed.rentYard?.outFixed?.sea || 0) || 0, cycleDays: 1 }],
+          silo: Number(parsed.rentYard?.outFixed?.silo ?? parsed.rentYard?.outFixed?.sea ?? d.rentYard.outFixed.silo) || 0,
+          cts: Number(parsed.rentYard?.outFixed?.cts ?? d.rentYard.outFixed.cts) || 0,
+          pTransfer: Number(parsed.rentYard?.outFixed?.pTransfer ?? d.rentYard.outFixed.pTransfer) || 0,
+        },
+        outDaily: parsed.rentYard?.outDaily || {},
+      },
+      silo:          { ...d.silo,          ...parsed.silo },
+      autoInbound:   parsed.autoInbound   || {},
+      manualInbound: parsed.manualInbound || {},
+      manualOutbound: parsed.manualOutbound || {},
+      manualOutboundDetail: parsed.manualOutboundDetail || {},
+      lastFetched:   parsed.lastFetched   || null,
+    };
+  } catch { return JSON.parse(JSON.stringify(DEFAULT_SETTINGS)); }
+}
+
+function saveSimSettings(s) {
+  const mode = getPageMode();
+  _simCache[mode] = s;
+  fetch(`/api/yard-sim?mode=${mode}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(s),
+  }).catch(err => console.warn('시뮬 설정 저장 실패:', err));
+}
+
+let SIM = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
+// ─────────────────────────────────────────
+//  DATE HELPERS
+// ─────────────────────────────────────────
+const pad = n => String(n).padStart(2, '0');
+function dayKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function toDateOnly(dt) { return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+function parseDT(v) { if (!v) return null; const d = new Date(v); return isNaN(d) ? null : d; }
+function fmt(n) { return Math.round(n).toLocaleString('ko-KR'); }
+function fmtRate(r) { return r.toFixed(1) + '%'; }
+function parseNum(v) {
+  const n = Number(String(v ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(n) ? n : 0;
+}
+function fmtInput(v) {
+  return parseNum(v).toLocaleString('ko-KR');
+}
+function getPageMode() {
+  const m = localStorage.getItem(PAGE_KEY);
+  return m === 'import' ? 'import' : 'overall';
+}
+function setPageMode(mode) {
+  const v = mode === 'import' ? 'import' : 'overall';
+  localStorage.setItem(PAGE_KEY, v);
+}
+function simStorageKeyByMode(mode) {
+  return mode === 'import' ? SIM_KEYS.import : SIM_KEYS.overall;
+}
+function isImportOutCollapsed() {
+  return localStorage.getItem(IMPORT_OUT_COLLAPSE_KEY) === '1';
+}
+function setImportOutCollapsed(v) {
+  localStorage.setItem(IMPORT_OUT_COLLAPSE_KEY, v ? '1' : '0');
+}
+
+function simRange() {
+  const today = toDateOnly(new Date());
+  const end   = new Date(today.getFullYear(), today.getMonth(), today.getDate() + SIM_DAYS);
+  return { start: today, end };
+}
+
+// ─────────────────────────────────────────
+//  INBOUND FROM berth7_v6 (READ-ONLY)
+// ─────────────────────────────────────────
+function calcAutoInbound(mode = getPageMode()) {
+  const raw = _scheduleCache;
+  const { start, end } = simRange();
+  const result = {};
+  const targetYard = mode === 'import' ? 'rent' : 'self';
+
+  raw
+    .filter(it => {
+      if (!it || it.type !== 'ship') return false;
+      const cargoType = String(it.cargoType || '').trim();
+      return cargoType !== '니켈';
+    })
+    .forEach(it => {
+      const s0 = parseDT(it.start);
+      const e0 = parseDT(it.end);
+      if (!s0 || !e0) return;
+
+      const totalTon = Number(it.bl) > 0 ? Number(it.bl) : DEFAULT_BL;
+      const totalMs = e0 - s0;
+      if (totalMs <= 0) return;
+
+      const s = s0 < start ? start : s0;
+      const e = e0 > end   ? end   : e0;
+      if (e <= s) return;
+
+      for (let d = toDateOnly(s); d < e; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        if (d < start || d >= end) continue;
+        const dayEnd    = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        const overlapMs = Math.min(e0, dayEnd) - Math.max(s0, d);
+        if (overlapMs <= 0) continue;
+        const ton = totalTon * (overlapMs / totalMs);
+        const k   = dayKey(d);
+        if (!result[k]) result[k] = { self: 0, rent: 0 };
+        result[k][targetYard] += ton;
+      }
+    });
+
+  return result;
+}
+
+// ─────────────────────────────────────────
+//  OUTBOUND HELPERS
+// ─────────────────────────────────────────
+function getOutboundForDay(yardSetting, dateKey) {
+  return outPartsTotal(getOutboundPartsForDay(yardSetting, dateKey));
+}
+
+function normalizeOutParts(raw) {
+  const b = raw || {};
+  return {
+    transfer: Number(b.transfer ?? b.sea) || 0,
+    land: Number(b.land) || 0,
+    silo: Number(b.silo) || 0,
+    cts: Number(b.cts) || 0,
+    pTransfer: Number(b.pTransfer) || 0,
+  };
+}
+
+function outPartsTotal(parts) {
+  return OUT_PART_FIELDS.reduce((sum, key) => sum + (Number(parts[key]) || 0), 0);
+}
+
+function getOutboundPartsForDay(yardSetting, dateKey, mode = getPageMode()) {
+  if (mode === 'overall') {
+    const f = yardSetting.outFixed || {};
+    const seaPlans = Array.isArray(f.seaPlans) ? f.seaPlans : [];
+    const seaDaily = seaPlans.reduce((sum, p) => {
+      const ton = Number(p?.ton) || 0;
+      const cycle = Math.max(1, Number(p?.cycleDays) || 1);
+      return sum + ton / cycle;
+    }, 0);
+    return normalizeOutParts({
+      transfer: f.transfer || 0,
+      land: f.land || 0,
+      pTransfer: seaDaily,
+    });
+  }
+  const f = yardSetting.outFixed || {};
+  return normalizeOutParts({
+    transfer: f.transfer || 0,
+    land: f.land || 0,
+    silo: f.silo || 0,
+    cts: f.cts || 0,
+    pTransfer: f.pTransfer || 0,
+  });
+}
+
+function getManualOutParts(simState, dateKey, yard) {
+  const byDate = simState.manualOutboundDetail?.[dateKey] || {};
+  const parts = byDate[yard];
+  if (!parts) return null;
+  return normalizeOutParts(parts);
+}
+
+function withResolvedAutoInbound(simState, fallbackState = null, mode = getPageMode()) {
+  const hasAutoInbound = simState && simState.autoInbound && Object.keys(simState.autoInbound).length > 0;
+  if (hasAutoInbound) return simState;
+  const fallbackInbound = fallbackState?.autoInbound && Object.keys(fallbackState.autoInbound).length > 0
+    ? fallbackState.autoInbound
+    : calcAutoInbound(mode);
+  return {
+    ...simState,
+    autoInbound: fallbackInbound,
+  };
+}
+
+// ─────────────────────────────────────────
+//  SIMULATION ENGINE
+// ─────────────────────────────────────────
+function runCalc(simState = SIM, mode = getPageMode()) {
+  const { start, end } = simRange();
+  const rows = [];
+  let selfStock = Number(simState.selfYard.initStock) || 0;
+  let rentStock = Number(simState.rentYard.initStock) || 0;
+
+  for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    const k = dayKey(d);
+
+    const autoSelf = (simState.autoInbound[k]   || {}).self || 0;
+    const autoRent = (simState.autoInbound[k]   || {}).rent || 0;
+    const manSelf  = (simState.manualInbound[k] || {}).self;
+    const manRent  = (simState.manualInbound[k] || {}).rent;
+
+    const selfIn = manSelf != null ? Number(manSelf) : autoSelf;
+    const rentIn = manRent != null ? Number(manRent) : autoRent;
+
+    const manSelfOut = (simState.manualOutbound[k] || {}).self;
+    const manRentOut = (simState.manualOutbound[k] || {}).rent;
+
+    const selfManParts = getManualOutParts(simState, k, 'self');
+    const rentManParts = getManualOutParts(simState, k, 'rent');
+    const selfPlanParts = getOutboundPartsForDay(simState.selfYard, k, mode);
+    const rentPlanParts = getOutboundPartsForDay(simState.rentYard, k, mode);
+
+    const selfOutParts = selfManParts || (manSelfOut != null
+      ? normalizeOutParts({ cts: Number(manSelfOut) || 0 })
+      : selfPlanParts);
+    const rentOutParts = rentManParts || (manRentOut != null
+      ? normalizeOutParts({ cts: Number(manRentOut) || 0 })
+      : rentPlanParts);
+
+    const selfOut = outPartsTotal(selfOutParts);
+    const rentOut = outPartsTotal(rentOutParts);
+
+    selfStock = Math.max(0, selfStock + selfIn - selfOut);
+    rentStock = Math.max(0, rentStock + rentIn - rentOut);
+
+    rows.push({
+      date: k,
+      selfIn, selfOut, selfStock,
+      rentIn, rentOut, rentStock,
+      selfOutParts,
+      rentOutParts,
+      totalIn:    selfIn + rentIn,
+      totalOut:   selfOut + rentOut,
+      totalStock: selfStock + rentStock,
+    });
+  }
+  return rows;
+}
+
+// ─────────────────────────────────────────
+//  RENDERING
+// ─────────────────────────────────────────
+function rateColor(rate) {
+  if (rate >= 100) return '#dc2626';
+  if (rate >= 90)  return '#ea580c';
+  if (rate >= 80)  return '#d97706';
+  return '#1f2937';
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('simBody');
+  tbody.innerHTML = '';
+  const pageMode = getPageMode();
+  const outCollapsed = isImportOutCollapsed();
+
+  rows.forEach(row => {
+    const selfCapa = Number(SIM.selfYard.capa) || 1;
+    const rentCapa = Number(SIM.rentYard.capa) || 1;
+    const totalCapa = Math.max(1, (Number(SIM.selfYard.capa) || 0) + (Number(SIM.rentYard.capa) || 0));
+    const selfRate = (row.selfStock / selfCapa) * 100;
+    const rentRate = (row.rentStock / rentCapa) * 100;
+    const totalRate = (row.totalStock / totalCapa) * 100;
+    const tr = document.createElement('tr');
+    if (pageMode === 'import') {
+      tr.innerHTML = `
+        <td>${row.date}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="in">${fmt(row.selfIn)}</td>
+        ${outCollapsed ? '' : `
+        <td data-yard="self" data-date="${row.date}" data-cell="out_transfer">${fmt(row.selfOutParts.transfer)}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="out_land">${fmt(row.selfOutParts.land)}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="out_silo">${fmt(row.selfOutParts.silo)}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="out_cts">${fmt(row.selfOutParts.cts)}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="out_pTransfer">${fmt(row.selfOutParts.pTransfer)}</td>
+        `}
+        <td>${fmt(row.selfOut)}</td>
+        ${outCollapsed ? `<td>${fmt(row.selfOut)}</td>` : ''}
+        <td><strong>${fmt(row.selfStock)}</strong></td>
+        <td style="font-weight:700;color:${rateColor(selfRate)}">${fmtRate(selfRate)}</td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${row.date}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="in">${fmt(row.selfIn)}</td>
+        <td data-yard="self" data-date="${row.date}" data-cell="out">${fmt(row.selfOut)}</td>
+        <td><strong>${fmt(row.selfStock)}</strong></td>
+        <td style="font-weight:700;color:${rateColor(selfRate)}">${fmtRate(selfRate)}</td>
+        <td data-yard="rent" data-date="${row.date}" data-cell="in">${fmt(row.rentIn)}</td>
+        <td data-yard="rent" data-date="${row.date}" data-cell="out">${fmt(row.rentOut)}</td>
+        <td><strong>${fmt(row.rentStock)}</strong></td>
+        <td style="font-weight:700;color:${rateColor(rentRate)}">${fmtRate(rentRate)}</td>
+        <td>${fmt(row.totalIn)}</td>
+        <td>${fmt(row.totalOut)}</td>
+        <td><strong>${fmt(row.totalStock)}</strong></td>
+        <td style="font-weight:700;color:${rateColor(totalRate)}">${fmtRate(totalRate)}</td>
+      `;
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTableHead() {
+  const head = document.getElementById('simHead');
+  if (getPageMode() === 'import') {
+    const outCollapsed = isImportOutCollapsed();
+    head.innerHTML = `
+      <tr>
+        <th class="gh-date" rowspan="2">날짜</th>
+        <th class="gh-self" rowspan="2">반입</th>
+        <th class="gh-self" ${outCollapsed ? 'rowspan="2"' : 'colspan="5"'}>
+          반출
+          <button class="fold-btn" onclick="toggleImportOutCols()" title="반출 상세 열 접기/펼치기">${outCollapsed ? '펼치기' : '접기'}</button>
+        </th>
+        <th class="gh-self" rowspan="2">반출합</th>
+        <th class="gh-self" rowspan="2">재고</th>
+        <th class="gh-self" rowspan="2">적치율</th>
+      </tr>
+      ${outCollapsed ? '' : `
+      <tr>
+        <th class="gh-self">이적반출</th>
+        <th class="gh-self">육송반출</th>
+        <th class="gh-self">silo</th>
+        <th class="gh-self">CTS이적</th>
+        <th class="gh-self">P-이적</th>
+      </tr>
+      `}
+    `;
+    return;
+  }
+  head.innerHTML = `
+    <tr>
+      <th class="gh-date" rowspan="2">날짜</th>
+      <th class="gh-self" colspan="4">자가야드</th>
+      <th class="gh-rent" colspan="4">임차야드</th>
+      <th class="gh-total" colspan="4">전체</th>
+    </tr>
+    <tr>
+      <th>반입</th><th>반출</th><th>재고</th><th>적치율</th>
+      <th>반입</th><th>반출</th><th>재고</th><th>적치율</th>
+      <th>반입</th><th>반출</th><th>총재고</th><th>적치율</th>
+    </tr>
+  `;
+}
+
+function renderHeader() {
+  // 표 헤더의 capa 표기 제거로 no-op
+}
+
+function renderHeaderSummary(rows) {
+  if (!rows.length) return;
+  const todayKey = dayKey(toDateOnly(new Date()));
+  const today = rows.find(r => r.date === todayKey) || rows[0];
+  const isImportMode = getPageMode() === 'import';
+  const selfRateBase = isImportMode ? 160000 : (SIM.selfYard.capa || 1);
+  const selfRate = (today.selfStock / selfRateBase) * 100;
+  const rentRate = (today.rentStock / (SIM.rentYard.capa || 1)) * 100;
+  const totalCap = (Number(SIM.selfYard.capa) || 0) + (Number(SIM.rentYard.capa) || 0);
+  const totalRate = totalCap > 0 ? (today.totalStock / totalCap) * 100 : 0;
+  const toKTon = n => `${Math.round((Number(n) || 0) / 1000).toLocaleString('ko-KR')}천톤`;
+  const fmtPct = r => `${Math.round(Number(r) || 0)}%`;
+  const pctColor = r => {
+    if (r >= 100) return '#f87171';
+    if (r >= 90) return '#fb923c';
+    if (r >= 80) return '#facc15';
+    return '#ffffff';
+  };
+  document.getElementById('headerSummary').innerHTML = `
+    <span class="hs" style="color:#fff;">자가야드 : <strong>${toKTon(today.selfStock)}</strong> <span style="color:${pctColor(selfRate)};font-weight:700;">(${fmtPct(selfRate)})</span></span>
+    <span class="hs" style="color:#fff;">임차야드 : <strong>${toKTon(today.rentStock)}</strong> <span style="color:${pctColor(rentRate)};font-weight:700;">(${fmtPct(rentRate)})</span></span>
+    <span class="hs" style="color:#fff;">총 재고 : <strong>${toKTon(today.totalStock)}</strong> <span style="color:${pctColor(totalRate)};font-weight:700;">(${fmtPct(totalRate)})</span></span>
+  `;
+  if (SIM.lastFetched) {
+    const d = new Date(SIM.lastFetched);
+    document.getElementById('headerMeta').textContent =
+      `마지막 업데이트: ${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}시`;
+  }
+}
+
+function computeSimEditableNeighbor(dateKey, yard, cell, key) {
+  const { start, end } = simRange();
+  const dates = [];
+  for (let d = new Date(start); d < end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    dates.push(dayKey(d));
+  }
+  const idx = dates.indexOf(dateKey);
+  if (idx < 0) return null;
+  const order = getPageMode() === 'import'
+    ? (isImportOutCollapsed()
+      ? [
+        { yard: 'self', cell: 'in' },
+      ]
+      : [
+        { yard: 'self', cell: 'in' },
+        { yard: 'self', cell: 'out_transfer' },
+        { yard: 'self', cell: 'out_land' },
+        { yard: 'self', cell: 'out_silo' },
+        { yard: 'self', cell: 'out_cts' },
+        { yard: 'self', cell: 'out_pTransfer' },
+      ])
+    : [
+        { yard: 'self', cell: 'in' },
+        { yard: 'self', cell: 'out' },
+        { yard: 'rent', cell: 'in' },
+        { yard: 'rent', cell: 'out' },
+      ];
+  const pos = order.findIndex(o => o.yard === yard && o.cell === cell);
+  if (pos < 0) return null;
+  if (key === 'ArrowDown' && idx < dates.length - 1) {
+    return { date: dates[idx + 1], yard, cell };
+  }
+  if (key === 'ArrowUp' && idx > 0) {
+    return { date: dates[idx - 1], yard, cell };
+  }
+  if (key === 'ArrowRight' && pos < order.length - 1) {
+    const { yard: y2, cell: c2 } = order[pos + 1];
+    return { date: dates[idx], yard: y2, cell: c2 };
+  }
+  if (key === 'ArrowLeft' && pos > 0) {
+    const { yard: y2, cell: c2 } = order[pos - 1];
+    return { date: dates[idx], yard: y2, cell: c2 };
+  }
+  return null;
+}
+
+function refresh() {
+  const overallState = withResolvedAutoInbound(loadSimSettings('overall'), null, 'overall');
+  const importState = withResolvedAutoInbound(loadSimSettings('import'), null, 'import');
+  const rows = getPageMode() === 'import'
+    ? runCalc(importState, 'import')
+    : runCalc(overallState, 'overall');
+  const overallRows = runCalc(overallState, 'overall');
+  const importRows = runCalc(importState, 'import');
+  renderTableHead();
+  renderHeader();
+  renderTable(rows);
+  renderHeaderSummary(rows);
+  renderSidePanel(overallRows, importRows, overallState, importState);
+  const wrap = document.getElementById('chartWrap');
+  if (!wrap.hidden) {
+    if (!stockChartCombined) initChart(overallRows, importRows, overallState, importState);
+    else updateChart(overallRows, importRows, overallState, importState);
+  }
+}
+
+function formatMD(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '-';
+  const [, mm, dd] = dateStr.split('-');
+  return `${mm}/${dd}`;
+}
+
+function formatYYMD(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '-';
+  const [yyyy, mm, dd] = dateStr.split('-');
+  return `${yyyy.slice(2)}/${mm}/${dd}`;
+}
+
+function formatRangeDate(startDate, endDate) {
+  if (!startDate || !endDate) return '해당 없음';
+  const startYear = startDate.slice(0, 4);
+  const endYear = endDate.slice(0, 4);
+  if (startYear === endYear) return `${formatMD(startDate)} ~ ${formatMD(endDate)}`;
+  return `${formatYYMD(startDate)} ~ ${formatYYMD(endDate)}`;
+}
+
+function overallCapacityLimit(state) {
+  return Math.max(1, (Number(state?.selfYard?.capa) || 0) + (Number(state?.rentYard?.capa) || 0));
+}
+
+function importCapacityLimit(state) {
+  return Math.max(1, Number(state?.selfYard?.capa) || 0);
+}
+
+function toKtonRounded(n) {
+  return Math.round((Number(n) || 0) / 1000);
+}
+
+function analyzeOverCapacity(rows, limit, selector) {
+  const lim = Number(limit) || 1;
+  const pick = typeof selector === 'function' ? selector : (r => r.selfStock);
+  let startIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const v = Number(pick(rows[i])) || 0;
+    if (v > lim) {
+      startIdx = i;
+      break;
+    }
+  }
+  if (startIdx < 0) {
+    return {
+      has: false,
+      startDate: null,
+      startExcessTon: 0,
+      normalizedDate: null,
+      endDate: null,
+    };
+  }
+  let endIdx = startIdx;
+  for (let i = startIdx + 1; i < rows.length; i++) {
+    const v = Number(pick(rows[i])) || 0;
+    if (v > lim) endIdx = i;
+    else break;
+  }
+  const normalized = rows[endIdx + 1]?.date || null;
+  const startVal = Number(pick(rows[startIdx])) || 0;
+  let maxExcessTon = Math.max(0, startVal - lim);
+  let maxExcessDate = rows[startIdx].date;
+  for (let i = startIdx; i <= endIdx; i++) {
+    const v = Number(pick(rows[i])) || 0;
+    const ex = Math.max(0, v - lim);
+    if (ex > maxExcessTon) {
+      maxExcessTon = ex;
+      maxExcessDate = rows[i].date;
+    }
+  }
+  return {
+    has: true,
+    startDate: rows[startIdx].date,
+    startExcessTon: Math.max(0, startVal - lim),
+    maxExcessTon,
+    maxExcessDate,
+    normalizedDate: normalized,
+    endDate: rows[endIdx].date,
+  };
+}
+
+function renderSidePanel(overallRows, importRows, overallState, importState) {
+  const summaryGrid = document.getElementById('summaryGrid');
+  const alertList = document.getElementById('alertList');
+  if (!summaryGrid || !alertList) return;
+
+  const peakOverall = overallRows.reduce((acc, row) => (
+    !acc || row.totalStock > acc.totalStock ? row : acc
+  ), null);
+  const peakImport = importRows.reduce((acc, row) => (
+    !acc || row.selfStock > acc.selfStock ? row : acc
+  ), null);
+  const peak = (!peakOverall || (peakImport && peakImport.selfStock > peakOverall.totalStock))
+    ? { yard: '반입', date: peakImport?.date, stock: peakImport?.selfStock || 0 }
+    : { yard: '전체', date: peakOverall?.date, stock: peakOverall?.totalStock || 0 };
+
+  const overallLimit = overallCapacityLimit(overallState);
+  const importLimit = importCapacityLimit(importState);
+  const overallOver = analyzeOverCapacity(overallRows, overallLimit, r => r.totalStock);
+  const importOver = analyzeOverCapacity(importRows, importLimit, r => r.selfStock);
+  const overStartLines = [
+    overallOver.has ? `[전체] ${formatMD(overallOver.startDate)} / +${toKtonRounded(overallOver.startExcessTon).toLocaleString('ko-KR')}천톤` : null,
+    importOver.has ? `[반입] ${formatMD(importOver.startDate)} / +${toKtonRounded(importOver.startExcessTon).toLocaleString('ko-KR')}천톤` : null,
+  ].filter(Boolean);
+  const overRangeLines = [
+    overallOver.has ? `[전체] ${formatRangeDate(overallOver.startDate, overallOver.endDate)}` : null,
+    importOver.has ? `[반입] ${formatRangeDate(importOver.startDate, importOver.endDate)}` : null,
+  ].filter(Boolean);
+
+  const rentCap = Number(importState?.rentYard?.capa) || 1;
+  let rentInsufficientDuringImportOver = false;
+  if (importOver.has && importOver.startDate && importOver.endDate) {
+    for (const row of importRows) {
+      if (row.date < importOver.startDate || row.date > importOver.endDate) continue;
+      if ((Number(row.rentStock) || 0) > rentCap) {
+        rentInsufficientDuringImportOver = true;
+        break;
+      }
+    }
+  }
+  const importMaxRow = importRows.find(r => r.date === importOver.maxExcessDate) || null;
+  const rentRoomAtImportPeakTon = importMaxRow
+    ? Math.max(0, (Number(importState?.rentYard?.capa) || 0) - (Number(importMaxRow.rentStock) || 0))
+    : 0;
+  const transferNeedTon = Number(importOver.maxExcessTon || 0);
+  const transferableToRentTon = Math.min(transferNeedTon, rentRoomAtImportPeakTon);
+  const remainingAfterRentTon = Math.max(0, transferNeedTon - transferableToRentTon);
+
+  const summaryItems = [
+    {
+      k: '예상 피크일',
+      v: peak?.date
+        ? `${formatMD(peak.date)} ${toKtonRounded(peak.stock).toLocaleString('ko-KR')}천톤(+${toKtonRounded(Math.max(0, peak.stock - (peak.yard === '반입' ? importLimit : overallLimit))).toLocaleString('ko-KR')}천톤)`
+        : '해당 없음',
+    },
+    {
+      k: 'Capa 초과 시작일',
+      v: overStartLines.length ? overStartLines.join('\n') : '해당 없음',
+    },
+    {
+      k: '초과 지속 기간',
+      v: overRangeLines.length ? overRangeLines.join('\n') : '해당 없음',
+    },
+    {
+      k: '\u00a0',
+      v: '\u00a0',
+    },
+  ];
+
+  summaryGrid.innerHTML = summaryItems.map(item => `
+    <div class="summary-card">
+      <div class="k">${item.k}</div>
+      <div class="v">${String(item.v).replace(/\n/g, '<br>')}</div>
+    </div>
+  `).join('');
+
+  const simData = {
+    overallOver,
+    importOver,
+    rentInsufficientDuringImportOver,
+    rentRoomAtImportPeakTon,
+    transferNeedTon,
+    transferableToRentTon,
+    remainingAfterRentTon,
+    overallRows,
+    importRows,
+    overallState,
+    importState,
+  };
+  const rules = Array.isArray(window.yardAlertRules) ? window.yardAlertRules : [];
+  const activeAlerts = rules
+    .filter(rule => {
+      try { return !!rule.condition(simData); } catch { return false; }
+    })
+    .map(rule => {
+      let msg = '';
+      try { msg = rule.message(simData); } catch { msg = ''; }
+      return { level: rule.level || 'info', msg };
+    });
+
+  if (!activeAlerts.length) {
+    alertList.innerHTML = `
+      <div class="alert-item success">
+        <span class="alert-dot"></span>
+        <div>현재 이상 없음</div>
+      </div>
+    `;
+    return;
+  }
+  alertList.innerHTML = activeAlerts.map(a => `
+    <div class="alert-item ${a.level}">
+      <span class="alert-dot"></span>
+      <div>${a.msg}</div>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────
+//  CHART
+// ─────────────────────────────────────────
+const CHART_Y_MAX_DEFAULT = 500000; // 50만 t — 재고 최대가 이보다 크면 축 상한을 그에 맞춤
+
+function chartYMax(rows) {
+  if (!rows || !rows.length) return CHART_Y_MAX_DEFAULT;
+  const peak = Math.max(...rows.map(r => r.totalStock), 0);
+  return Math.max(CHART_Y_MAX_DEFAULT, peak);
+}
+function chartYMaxBy(rows, selector) {
+  if (!rows || !rows.length) return CHART_Y_MAX_DEFAULT;
+  const peak = Math.max(...rows.map(selector), 0);
+  return Math.max(CHART_Y_MAX_DEFAULT, peak);
+}
+
+let stockChartCombined = null;
+const exceedHatchPlugin = {
+  id: 'exceedHatchPlugin',
+  afterDatasetsDraw(chart) {
+    const { ctx, scales } = chart;
+    const yScale = scales.y;
+    if (!yScale) return;
+    const limits = chart?.options?.plugins?.exceedHatchPluginLimits || {};
+    const overallLimit = Number(limits.overall) || 1;
+    const importLimit = Number(limits.import) || 1;
+    const targets = [
+      { datasetIndex: 0, limit: overallLimit, color: '#dc2626' },
+      { datasetIndex: 1, limit: importLimit, color: '#dc2626' },
+    ];
+    ctx.save();
+    targets.forEach(t => {
+      const ds = chart.data.datasets[t.datasetIndex];
+      const meta = chart.getDatasetMeta(t.datasetIndex);
+      if (!ds || !meta || !meta.data || meta.data.length < 2) return;
+      const yLimit = yScale.getPixelForValue(t.limit);
+
+      for (let i = 0; i < meta.data.length - 1; i++) {
+        const p1 = meta.data[i];
+        const p2 = meta.data[i + 1];
+        const v1 = Number(ds.data[i]);
+        const v2 = Number(ds.data[i + 1]);
+        if (!Number.isFinite(v1) || !Number.isFinite(v2) || (!p1 && !p2)) continue;
+
+        const d1 = v1 - t.limit;
+        const d2 = v2 - t.limit;
+        if (d1 <= 0 && d2 <= 0) continue;
+
+        let xA = p1.x;
+        let yA = p1.y;
+        let xB = p2.x;
+        let yB = p2.y;
+
+        if ((d1 > 0 && d2 <= 0) || (d1 <= 0 && d2 > 0)) {
+          const ratio = Math.abs(d1) / (Math.abs(d1) + Math.abs(d2));
+          const xCross = p1.x + (p2.x - p1.x) * ratio;
+          const yCross = p1.y + (p2.y - p1.y) * ratio;
+          if (d1 > 0) {
+            xB = xCross;
+            yB = yCross;
+          } else {
+            xA = xCross;
+            yA = yCross;
+          }
+        }
+
+        const left = Math.min(xA, xB);
+        const right = Math.max(xA, xB);
+        if (right - left < 1) continue;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(xA, yA);
+        ctx.lineTo(xB, yB);
+        ctx.lineTo(xB, yLimit);
+        ctx.lineTo(xA, yLimit);
+        ctx.closePath();
+        ctx.clip();
+
+        // 더 촘촘한 빨간 해칭
+        ctx.strokeStyle = t.color;
+        ctx.lineWidth = 1.5;
+        const spacing = 4;
+        const h = Math.abs(yLimit - Math.min(yA, yB)) + 20;
+        for (let x = left - h; x <= right + h; x += spacing) {
+          ctx.beginPath();
+          ctx.moveTo(x, yLimit + 8);
+          ctx.lineTo(x + h, yLimit - h);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+  },
+};
+
+function initChart(overallRows, importRows, overallState, importState) {
+  if (!overallRows || !overallRows.length) return;
+  const labels = overallRows.map(r => {
+    const parts = r.date.split('-');
+    return `${Number(parts[1])}/${Number(parts[2])}`;
+  });
+  const dataOverall = overallRows.map(r => r.totalStock);
+  const importSource = (importRows && importRows.length) ? importRows : overallRows;
+  const dataImport = importSource.map(r => r.selfStock);
+  const overallLimitValue = overallCapacityLimit(overallState);
+  const importLimitValue = importCapacityLimit(importState);
+  const overallLimit = labels.map(() => overallLimitValue);
+  const importLimit = labels.map(() => importLimitValue);
+  const overallExceed = dataOverall.map(v => (v > overallLimitValue ? v : null));
+  const importExceed = dataImport.map(v => (v > importLimitValue ? v : null));
+
+  stockChartCombined = new Chart(document.getElementById('stockChartCombined'), {
+    type: 'line',
+    plugins: [exceedHatchPlugin],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '전체야드 총재고',
+          data: dataOverall,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37,99,235,0.08)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 2.4,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+        },
+        {
+          label: '반입야드 재고',
+          data: dataImport,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22,163,74,0)',
+          fill: false,
+          tension: 0.3,
+          borderWidth: 2.8,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+        },
+        {
+          label: '전체야드 재고 한계선',
+          data: overallLimit,
+          borderColor: '#1d4ed8',
+          backgroundColor: 'rgba(0,0,0,0)',
+          borderDash: [7, 5],
+          fill: false,
+          tension: 0,
+          borderWidth: 1.4,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+        },
+        {
+          label: '반입야드 재고 한계선',
+          data: importLimit,
+          borderColor: '#15803d',
+          backgroundColor: 'rgba(0,0,0,0)',
+          borderDash: [5, 4],
+          fill: false,
+          tension: 0,
+          borderWidth: 1.4,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+        },
+        {
+          label: '전체야드 한계 초과',
+          data: overallExceed,
+          borderColor: '#dc2626',
+          backgroundColor: 'rgba(0,0,0,0)',
+          fill: false,
+          tension: 0.3,
+          borderWidth: 2.6,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          spanGaps: false,
+        },
+        {
+          label: '반입야드 한계 초과',
+          data: importExceed,
+          borderColor: '#dc2626',
+          backgroundColor: 'rgba(0,0,0,0)',
+          fill: false,
+          tension: 0.3,
+          borderWidth: 2.6,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          spanGaps: false,
+        }
+      ]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      interaction: {
+        mode: 'nearest',
+        intersect: false,
+      },
+      plugins: {
+        exceedHatchPluginLimits: {
+          overall: overallLimitValue,
+          import: importLimitValue,
+        },
+        legend: { display: false },
+        tooltip: {
+          mode: 'nearest',
+          intersect: false,
+          filter: (ctx) => ctx.datasetIndex === 0 || ctx.datasetIndex === 1,
+          callbacks: {
+            afterLabel: (ctx) => {
+              const limits = ctx?.chart?.options?.plugins?.exceedHatchPluginLimits || {};
+              const limit = ctx.datasetIndex === 0
+                ? Number(limits.overall) || 0
+                : Number(limits.import) || 0;
+              const value = Number(ctx.parsed?.y) || 0;
+              const diff = value - limit;
+              const diffLabel = diff >= 0
+                ? `초과 물량: +${fmt(diff)} t`
+                : `여유 물량: △${fmt(Math.abs(diff))} t`;
+              return [diffLabel];
+            },
+          },
+        }
+      },
+      scales: {
+        x: {
+          ticks: { font: { size: 11 }, maxTicksLimit: 16 }
+        },
+        y: {
+          min: 0,
+          max: Math.max(
+            chartYMax(overallRows),
+            chartYMaxBy(importSource, r => r.selfStock)
+          ),
+          ticks: {
+            font: { size: 11 },
+            callback: v => Math.round(v / 10000) + '만t'
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(overallRows, importRows, overallState, importState) {
+  if (!stockChartCombined) return;
+  const importSource = (importRows && importRows.length) ? importRows : overallRows;
+  const labels = overallRows.map(r => {
+    const parts = r.date.split('-');
+    return `${Number(parts[1])}/${Number(parts[2])}`;
+  });
+  const overallLimitValue = overallCapacityLimit(overallState);
+  const importLimitValue = importCapacityLimit(importState);
+  const overallLimit = labels.map(() => overallLimitValue);
+  const importLimit = labels.map(() => importLimitValue);
+  const dataOverall = overallRows.map(r => r.totalStock);
+  const dataImport = importSource.map(r => r.selfStock);
+  const overallExceed = dataOverall.map(v => (v > overallLimitValue ? v : null));
+  const importExceed = dataImport.map(v => (v > importLimitValue ? v : null));
+  stockChartCombined.data.datasets[0].data = dataOverall;
+  stockChartCombined.data.datasets[1].data = dataImport;
+  stockChartCombined.data.datasets[2].data = overallLimit;
+  stockChartCombined.data.datasets[3].data = importLimit;
+  stockChartCombined.data.datasets[4].data = overallExceed;
+  stockChartCombined.data.datasets[5].data = importExceed;
+  if (stockChartCombined.options?.plugins) {
+    stockChartCombined.options.plugins.exceedHatchPluginLimits = {
+      overall: overallLimitValue,
+      import: importLimitValue,
+    };
+  }
+  if (stockChartCombined.options?.scales?.y) {
+    stockChartCombined.options.scales.y.max = Math.max(
+      chartYMax(overallRows),
+      chartYMaxBy(importSource, r => r.selfStock)
+    );
+  }
+  stockChartCombined.update('none');
+}
+
+function onPageModeChange(mode) {
+  saveSimSettings(SIM);
+  setPageMode(mode);
+  SIM = loadSimSettings(mode);
+  refresh();
+}
+
+function toggleImportOutCols() {
+  setImportOutCollapsed(!isImportOutCollapsed());
+  refresh();
+}
+
+// ─────────────────────────────────────────
+//  SETTINGS MODAL
+// ─────────────────────────────────────────
+function updateFixedTotal(yard) {
+  const c = yard === 'self' ? 'Self' : 'Rent';
+  const t = parseNum(document.getElementById(`s${c}Transfer`).value);
+  const l = parseNum(document.getElementById(`s${c}Land`).value);
+  const rows = Array.from(document.querySelectorAll(`#s${c}SeaPlanBody tr`));
+  const seaDaily = rows.reduce((sum, tr) => {
+    const ton = parseNum(tr.querySelector('[data-field="ton"]')?.value || 0);
+    const cycle = Math.max(1, parseNum(tr.querySelector('[data-field="cycleDays"]')?.value || 1));
+    return sum + (ton / cycle);
+  }, 0);
+  document.getElementById(`s${c}SeaDaily`).textContent = fmt(seaDaily);
+  document.getElementById(`s${c}Total`).textContent = fmt(t + l + seaDaily);
+}
+
+function updateImportFixedTotal() {
+  const t = parseNum(document.getElementById('iSelfTransfer').value);
+  const l = parseNum(document.getElementById('iSelfLand').value);
+  const silo = parseNum(document.getElementById('iSelfSilo').value);
+  const cts = parseNum(document.getElementById('iSelfCts').value);
+  const pTransfer = parseNum(document.getElementById('iSelfPTransfer').value);
+  document.getElementById('iSelfTotal').textContent = fmt(t + l + silo + cts + pTransfer);
+}
+
+function formatCommaInput(input) {
+  if (!input) return;
+  const caretToEnd = input.selectionStart === input.value.length;
+  input.value = fmtInput(input.value);
+  if (caretToEnd) {
+    const len = input.value.length;
+    input.setSelectionRange(len, len);
+  }
+}
+
+function bindCommaInputs(root = document) {
+  root.querySelectorAll('input.num-comma').forEach(input => {
+    if (input.dataset.boundComma === '1') return;
+    input.dataset.boundComma = '1';
+    input.addEventListener('input', () => formatCommaInput(input));
+    input.addEventListener('blur', () => formatCommaInput(input));
+  });
+}
+
+function getSeaPlansFromUI(yard) {
+  const c = yard === 'self' ? 'Self' : 'Rent';
+  const rows = Array.from(document.querySelectorAll(`#s${c}SeaPlanBody tr`));
+  const plans = rows.map(tr => ({
+    ton: parseNum(tr.querySelector('[data-field="ton"]')?.value || 0),
+    cycleDays: Math.max(1, parseNum(tr.querySelector('[data-field="cycleDays"]')?.value || 1)),
+  })).filter(p => p.ton > 0 || p.cycleDays > 0);
+  return plans.length ? plans : [{ ton: 0, cycleDays: 1 }];
+}
+
+function renderSeaPlanRows(yard, plans) {
+  const c = yard === 'self' ? 'Self' : 'Rent';
+  const tbody = document.getElementById(`s${c}SeaPlanBody`);
+  tbody.innerHTML = '';
+  const effective = (plans && plans.length) ? plans : [{ ton: 0, cycleDays: 1 }];
+  effective.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="num-comma" data-field="ton" value="${fmtInput(p.ton || 0)}"></td>
+      <td><input type="text" class="num-comma" data-field="cycleDays" value="${fmtInput(p.cycleDays || 1)}"></td>
+      <td><button class="btn btn-red" type="button" style="padding:4px 8px;font-size:11px;" onclick="removeSeaPlanRow('${yard}', ${idx})">삭제</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  bindCommaInputs(tbody);
+  tbody.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => updateFixedTotal(yard)));
+}
+
+function addSeaPlanRow(yard) {
+  const plans = getSeaPlansFromUI(yard);
+  plans.push({ ton: 0, cycleDays: 1 });
+  renderSeaPlanRows(yard, plans);
+  updateFixedTotal(yard);
+}
+
+function removeSeaPlanRow(yard, idx) {
+  const plans = getSeaPlansFromUI(yard).filter((_, i) => i !== idx);
+  renderSeaPlanRows(yard, plans.length ? plans : [{ ton: 0, cycleDays: 1 }]);
+  updateFixedTotal(yard);
+}
+
+function openSettings() {
+  const s = SIM;
+  const mode = getPageMode();
+  const isImport = mode === 'import';
+  document.getElementById('settingsModalTitle').textContent = isImport ? '반입야드 상세 설정' : '상세 설정';
+  document.getElementById('overallSettingsBlock').style.display = isImport ? 'none' : '';
+  document.getElementById('importSettingsBlock').style.display = isImport ? '' : 'none';
+
+  if (isImport) {
+    document.getElementById('iSelfCapa').value = fmtInput(s.selfYard.capa);
+    document.getElementById('iSelfInit').value = fmtInput(s.selfYard.initStock);
+    document.getElementById('iSelfTransfer').value = fmtInput(s.selfYard.outFixed.transfer);
+    document.getElementById('iSelfLand').value = fmtInput(s.selfYard.outFixed.land);
+    document.getElementById('iSelfSilo').value = fmtInput(s.selfYard.outFixed.silo || 0);
+    document.getElementById('iSelfCts').value = fmtInput(s.selfYard.outFixed.cts || 0);
+    document.getElementById('iSelfPTransfer').value = fmtInput(s.selfYard.outFixed.pTransfer || 0);
+    updateImportFixedTotal();
+  } else {
+    document.getElementById('sSelfCapa').value      = fmtInput(s.selfYard.capa);
+    document.getElementById('sSelfInit').value      = fmtInput(s.selfYard.initStock);
+    document.getElementById('sSelfTransfer').value  = fmtInput(s.selfYard.outFixed.transfer);
+    document.getElementById('sSelfLand').value      = fmtInput(s.selfYard.outFixed.land);
+    renderSeaPlanRows('self', s.selfYard.outFixed.seaPlans);
+    updateFixedTotal('self');
+
+    document.getElementById('sRentCapa').value      = fmtInput(s.rentYard.capa);
+    document.getElementById('sRentInit').value      = fmtInput(s.rentYard.initStock);
+    document.getElementById('sRentTransfer').value  = fmtInput(s.rentYard.outFixed.transfer);
+    document.getElementById('sRentLand').value      = fmtInput(s.rentYard.outFixed.land);
+    renderSeaPlanRows('rent', s.rentYard.outFixed.seaPlans);
+    updateFixedTotal('rent');
+
+    SIM.selfYard.outMode = 'fixed';
+    SIM.rentYard.outMode = 'fixed';
+  }
+  bindCommaInputs(document.getElementById('settingsModal'));
+  document.getElementById('settingsModal').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('show');
+}
+
+function hasManualInboundData() {
+  return Object.keys(SIM.manualInbound || {}).length > 0;
+}
+
+function hasManualOutboundData() {
+  return Object.keys(SIM.manualOutbound || {}).length > 0 || Object.keys(SIM.manualOutboundDetail || {}).length > 0;
+}
+
+let confirmContext = null;
+
+function showConfirmModal({ title, message, context }) {
+  const titleEl = document.getElementById('confirmTitle');
+  const msgEl = document.getElementById('confirmMsg');
+  if (titleEl) titleEl.textContent = title;
+  if (msgEl) msgEl.innerHTML = message;
+  confirmContext = context || null;
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function saveInboundMeta(target) {
+  if (target === 'self') {
+    const selfCapa = parseNum(document.getElementById('sSelfCapa').value);
+    SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
+    SIM.selfYard.initStock = parseNum(document.getElementById('sSelfInit').value);
+  } else if (target === 'rent') {
+    const rentCapa = parseNum(document.getElementById('sRentCapa').value);
+    SIM.rentYard.capa = rentCapa > 0 ? rentCapa : 172800;
+    SIM.rentYard.initStock = parseNum(document.getElementById('sRentInit').value);
+  } else {
+    const selfCapa = parseNum(document.getElementById('iSelfCapa').value);
+    SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
+    SIM.selfYard.initStock = parseNum(document.getElementById('iSelfInit').value);
+  }
+  saveSimSettings(SIM);
+  refresh();
+}
+
+function applySettings(opts = {}) {
+  const overwriteManual = !!opts.overwriteManual;
+  if (getPageMode() === 'import') {
+    const selfCapa = parseNum(document.getElementById('iSelfCapa').value);
+    SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
+    SIM.selfYard.initStock = parseNum(document.getElementById('iSelfInit').value);
+    SIM.selfYard.outFixed = {
+      ...SIM.selfYard.outFixed,
+      transfer: parseNum(document.getElementById('iSelfTransfer').value),
+      land: parseNum(document.getElementById('iSelfLand').value),
+      silo: parseNum(document.getElementById('iSelfSilo').value),
+      cts: parseNum(document.getElementById('iSelfCts').value),
+      pTransfer: parseNum(document.getElementById('iSelfPTransfer').value),
+    };
+    SIM.selfYard.outMode = 'fixed';
+    if (overwriteManual) {
+      SIM.manualOutbound = {};
+      SIM.manualOutboundDetail = {};
+    }
+  } else {
+    const selfCapa = parseNum(document.getElementById('sSelfCapa').value);
+    SIM.selfYard.capa = selfCapa > 0 ? selfCapa : 248400;
+    SIM.selfYard.initStock = parseNum(document.getElementById('sSelfInit').value);
+    SIM.selfYard.outFixed = {
+      ...SIM.selfYard.outFixed,
+      transfer: parseNum(document.getElementById('sSelfTransfer').value),
+      land: parseNum(document.getElementById('sSelfLand').value),
+      seaPlans: getSeaPlansFromUI('self'),
+    };
+    SIM.selfYard.outMode = 'fixed';
+
+    const rentCapa = parseNum(document.getElementById('sRentCapa').value);
+    SIM.rentYard.capa = rentCapa > 0 ? rentCapa : 172800;
+    SIM.rentYard.initStock = parseNum(document.getElementById('sRentInit').value);
+    SIM.rentYard.outFixed = {
+      ...SIM.rentYard.outFixed,
+      transfer: parseNum(document.getElementById('sRentTransfer').value),
+      land: parseNum(document.getElementById('sRentLand').value),
+      seaPlans: getSeaPlansFromUI('rent'),
+    };
+    SIM.rentYard.outMode = 'fixed';
+    if (overwriteManual) {
+      SIM.manualOutbound = {};
+      SIM.manualOutboundDetail = {};
+    }
+  }
+
+  saveSimSettings(SIM);
+  closeSettings();
+  refresh();
+}
+
+function applySettingsLoad() {
+  applySettings({ overwriteManual: false });
+}
+
+function applySettingsOverwrite() {
+  applySettings({ overwriteManual: true });
+}
+
+function saveSettings() {
+  const hasManual = hasManualOutboundData();
+  showConfirmModal({
+    title: '상세 입력 적용',
+    message: hasManual
+      ? '수동으로 편집한 반출 셀이 있습니다.<br>덮어쓸 경우 입력된 데이터가 갱신됩니다.<br>아래 방식 중 하나를 선택하세요.'
+      : '상세 입력값을 일괄 적용합니다.<br>아래 방식 중 하나를 선택하세요.',
+    context: 'settings',
+  });
+}
+
+// ─────────────────────────────────────────
+//  LOAD FROM berth7_v6
+// ─────────────────────────────────────────
+function handleLoad() {
+  const hasManual = hasManualInboundData();
+  showConfirmModal({
+    title: '반입 데이터 불러오기',
+    message: hasManual
+      ? '수동으로 편집한 반입 셀이 있습니다.<br>덮어쓸 경우 입력된 데이터가 갱신됩니다.<br>아래 방식 중 하나를 선택하세요.'
+      : '새 반입 데이터를 일괄 반영합니다.<br>아래 방식 중 하나를 선택하세요.',
+    context: 'load',
+  });
+}
+
+function closeConfirm() {
+  confirmContext = null;
+  document.getElementById('confirmModal').classList.remove('show');
+}
+
+function confirmLoad() {
+  const ctx = confirmContext;
+  closeConfirm();
+  if (ctx === 'settings') {
+    applySettings({ overwriteManual: false });
+    return;
+  }
+  doLoad({ overwriteManualInbound: false });
+}
+
+function confirmOverwriteLoad() {
+  const ctx = confirmContext;
+  closeConfirm();
+  if (ctx === 'settings') {
+    applySettings({ overwriteManual: true });
+    return;
+  }
+  doLoad({ overwriteManualInbound: true });
+}
+
+function doLoad(opts = {}) {
+  const overwriteManualInbound = !!opts.overwriteManualInbound;
+  SIM.autoInbound  = calcAutoInbound();
+  if (overwriteManualInbound) {
+    SIM.manualInbound = {};
+  }
+  SIM.lastFetched  = new Date().toISOString();
+  saveSimSettings(SIM);
+  refresh();
+}
+
+// ─────────────────────────────────────────
+//  INLINE CELL EDITING
+// ─────────────────────────────────────────
+function parseCellNum(s) {
+  const n = Number(String(s).trim().replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function cellCurrentValue(date, yard, cell) {
+  const yardKey = yard + 'Yard';
+  if (cell === 'in') {
+    const cur = (SIM.manualInbound[date] || {})[yard];
+    const autoVal = (SIM.autoInbound[date] || {})[yard] || 0;
+    return cur != null ? cur : autoVal;
+  }
+  if (cell === 'out') {
+    const cur = (SIM.manualOutbound[date] || {})[yard];
+    const autoVal = getOutboundForDay(SIM[yardKey], date);
+    return cur != null ? cur : autoVal;
+  }
+  if (cell.startsWith('out_')) {
+    const part = cell.replace('out_', '');
+    const manualParts = getManualOutParts(SIM, date, yard);
+    const baseParts = manualParts || getOutboundPartsForDay(SIM[yardKey], date);
+    return Number(baseParts[part]) || 0;
+  }
+  return 0;
+}
+
+function applySimCellValue(date, yard, cell, newVal, saveNow = true) {
+  const yardKey = yard + 'Yard';
+  if (cell === 'in') {
+    if (!SIM.manualInbound[date]) SIM.manualInbound[date] = {};
+    SIM.manualInbound[date][yard] = newVal;
+  } else if (cell === 'out') {
+    if (!SIM.manualOutbound[date]) SIM.manualOutbound[date] = {};
+    SIM.manualOutbound[date][yard] = newVal;
+    // 집계 반출값을 직접 입력한 경우, 기존 상세 반출 수동값이 우선 적용되지 않도록 제거한다.
+    if (SIM.manualOutboundDetail[date]?.[yard]) {
+      delete SIM.manualOutboundDetail[date][yard];
+      if (Object.keys(SIM.manualOutboundDetail[date]).length === 0) {
+        delete SIM.manualOutboundDetail[date];
+      }
+    }
+  } else if (cell.startsWith('out_')) {
+    const part = cell.replace('out_', '');
+    if (!SIM.manualOutboundDetail[date]) SIM.manualOutboundDetail[date] = {};
+    if (!SIM.manualOutboundDetail[date][yard]) {
+      SIM.manualOutboundDetail[date][yard] = getOutboundPartsForDay(SIM[yardKey], date);
+    }
+    SIM.manualOutboundDetail[date][yard][part] = newVal;
+    if (SIM.manualOutbound[date]) delete SIM.manualOutbound[date][yard];
+  }
+  if (saveNow) saveSimSettings(SIM);
+}
+
+function openSimCellEditor(td) {
+  if (!td || td.querySelector('input.sim-cell-input')) return;
+  const yard = td.dataset.yard;
+  const date = td.dataset.date;
+  const cell = td.dataset.cell;
+  const val = cellCurrentValue(date, yard, cell);
+
+  td.innerHTML = '';
+  const input = document.createElement('input');
+  input.className = 'sim-cell-input';
+  input.setAttribute('type', 'text');
+  input.setAttribute('inputmode', 'decimal');
+  input.setAttribute('autocomplete', 'off');
+  input.setAttribute('spellcheck', 'false');
+  input.value = String(Math.round(val));
+
+  const handle = document.createElement('span');
+  handle.className = 'sim-fill-handle';
+  handle.title = '드래그하여 값 복사';
+
+  td.appendChild(input);
+  td.appendChild(handle);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  function commit() {
+    if (committed) return;
+    committed = true;
+    applySimCellValue(date, yard, cell, parseCellNum(input.value), true);
+    refresh();
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      if (!committed) {
+        committed = true;
+        applySimCellValue(date, yard, cell, parseCellNum(input.value), true);
+      }
+      const nb = computeSimEditableNeighbor(date, yard, cell, 'ArrowDown');
+      refresh();
+      if (nb) {
+        requestAnimationFrame(() => {
+          const target = document.querySelector(
+            `td[data-date="${nb.date}"][data-yard="${nb.yard}"][data-cell="${nb.cell}"]`
+          );
+          if (target) openSimCellEditor(target);
+        });
+      }
+      return;
+    }
+    if (ev.key === 'Escape') { committed = true; refresh(); return; }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) {
+      ev.preventDefault();
+      if (!committed) {
+        committed = true;
+        applySimCellValue(date, yard, cell, parseCellNum(input.value), true);
+      }
+      const nb = computeSimEditableNeighbor(date, yard, cell, ev.key);
+      refresh();
+      if (nb) {
+        requestAnimationFrame(() => {
+          const target = document.querySelector(
+            `td[data-date="${nb.date}"][data-yard="${nb.yard}"][data-cell="${nb.cell}"]`
+          );
+          if (target) openSimCellEditor(target);
+        });
+      }
+    }
+  });
+}
+
+let simFillDrag = null;
+
+function simCellFromPoint(clientX, clientY) {
+  const stack = document.elementsFromPoint(clientX, clientY);
+  for (const el of stack) {
+    const td = el.closest?.('td[data-yard][data-cell]');
+    if (!td || !td.closest('#simBody')) continue;
+    return td;
+  }
+  return null;
+}
+
+function applySimFillRange(start, end, value) {
+  if (!start || !end) return;
+  if (start.yard !== end.yard || start.cell !== end.cell) return;
+  const { start: sDate, end: eDate } = simRange();
+  const dates = [];
+  for (let d = new Date(sDate); d < eDate; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    dates.push(dayKey(d));
+  }
+  const i0 = dates.indexOf(start.date);
+  const i1 = dates.indexOf(end.date);
+  if (i0 < 0 || i1 < 0) return;
+  const from = Math.min(i0, i1);
+  const to = Math.max(i0, i1);
+  for (let i = from; i <= to; i++) {
+    applySimCellValue(dates[i], start.yard, start.cell, value, false);
+  }
+  saveSimSettings(SIM);
+  refresh();
+}
+
+function startSimFillDrag(sourceTd, value, e) {
+  e.preventDefault();
+  simFillDrag = {
+    start: {
+      date: sourceTd.dataset.date,
+      yard: sourceTd.dataset.yard,
+      cell: sourceTd.dataset.cell,
+    },
+    end: {
+      date: sourceTd.dataset.date,
+      yard: sourceTd.dataset.yard,
+      cell: sourceTd.dataset.cell,
+    },
+    value,
+  };
+  document.body.classList.add('sim-fill-dragging');
+}
+
+document.getElementById('simBody').addEventListener('mousedown', e => {
+  const handle = e.target.closest('.sim-fill-handle');
+  if (handle) {
+    const td = handle.closest('td[data-yard][data-cell]');
+    const input = td?.querySelector('input.sim-cell-input');
+    if (td && input) {
+      startSimFillDrag(td, parseCellNum(input.value), e);
+    }
+    return;
+  }
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const td = e.target.closest('td[data-yard][data-cell]');
+  if (!td) return;
+  startSimFillDrag(td, parseCellNum(cellCurrentValue(td.dataset.date, td.dataset.yard, td.dataset.cell)), e);
+}, true);
+
+document.addEventListener('mousemove', e => {
+  if (!simFillDrag) return;
+  const td = simCellFromPoint(e.clientX, e.clientY);
+  if (!td) return;
+  if (td.dataset.yard !== simFillDrag.start.yard || td.dataset.cell !== simFillDrag.start.cell) return;
+  simFillDrag.end = { date: td.dataset.date, yard: td.dataset.yard, cell: td.dataset.cell };
+});
+
+document.addEventListener('mouseup', () => {
+  if (!simFillDrag) return;
+  const drag = simFillDrag;
+  simFillDrag = null;
+  document.body.classList.remove('sim-fill-dragging');
+  applySimFillRange(drag.start, drag.end, drag.value);
+});
+
+document.getElementById('simBody').addEventListener('click', e => {
+  const td = e.target.closest('td[data-yard][data-cell]');
+  if (!td || td.querySelector('input.sim-cell-input')) return;
+  openSimCellEditor(td);
+});
+
+// ─────────────────────────────────────────
+//  MODAL CLOSE ON OVERLAY CLICK
+// ─────────────────────────────────────────
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target.id === 'settingsModal') closeSettings();
+});
+document.getElementById('confirmModal').addEventListener('click', e => {
+  if (e.target.id === 'confirmModal') closeConfirm();
+});
+
+// ─────────────────────────────────────────
+//  INIT (async — DB에서 로드)
+// ─────────────────────────────────────────
+(async function init() {
+  try {
+    const [overallRes, importRes, scheduleRes] = await Promise.all([
+      fetch('/api/yard-sim?mode=overall'),
+      fetch('/api/yard-sim?mode=import'),
+      fetch('/api/schedule'),
+    ]);
+    if (overallRes.ok) {
+      const d = await overallRes.json();
+      if (d) _simCache.overall = d;
+    }
+    if (importRes.ok) {
+      const d = await importRes.json();
+      if (d) _simCache.import = d;
+    }
+    if (scheduleRes.ok) {
+      _scheduleCache = await scheduleRes.json();
+    }
+  } catch (e) {
+    console.warn('초기 데이터 로드 실패:', e);
+  }
+  SIM = loadSimSettings(getPageMode());
+  document.getElementById('pageSelect').value = getPageMode();
+  refresh();
+})();
+</script>
+</body>
+</html>

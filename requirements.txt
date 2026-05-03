@@ -1,0 +1,23 @@
+# --- FastAPI 서버 ---
+fastapi==0.128.8
+uvicorn[standard]==0.39.0
+python-multipart==0.0.20
+python-dotenv==1.2.1
+itsdangerous==2.2.0
+bcrypt==4.2.1
+
+# --- 데이터 / 엑셀 ---
+pandas==2.3.3
+openpyxl==3.1.5
+xlrd==2.0.2
+
+# --- 하역 챗봇 (RAG + SQL 경로) ---
+chromadb==1.5.7
+langchain-core==0.3.84
+langgraph==0.6.11
+rank-bm25==0.2.2
+sentence-transformers==5.1.2
+
+# --- PostgreSQL (DATABASE_URL 설정 시; 미설정 시 SQLite 파일) ---
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.4

@@ -1,0 +1,4 @@
+# 로컬 개발·테스트: pip install -r requirements-dev.txt
+-r requirements.txt
+streamlit>=1.40.0
+pytest>=8.3.0

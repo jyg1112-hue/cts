@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>반출 스케줄</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Malgun Gothic', sans-serif;
+  background: #f0f2f5; color: #333;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── HEADER ── */
+.app-header {
+  background: #1a3a5c; color: white;
+  padding: 10px 16px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 100;
+}
+.app-header h1 { font-size: 17px; font-weight: 700; }
+.header-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.range-label { font-size: 12px; color: #93c5fd; }
+.header-controls input[type="date"] {
+  padding: 5px 8px; border: none; border-radius: 4px; font-size: 12px;
+}
+/* 기준일: 7선석과 동일한 커스텀 달력 UI */
+.base-cal-anchor { position: relative; display: inline-block; flex-shrink: 0; }
+.base-cal-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border: none; border-radius: 4px;
+  font-size: 12px; font-weight: 600; color: #1a3a5c;
+  background: white; cursor: pointer; font-family: inherit;
+}
+.base-cal-trigger:hover { filter: brightness(0.97); }
+.base-cal-chevron { font-size: 9px; opacity: 0.65; }
+.base-cal-pop {
+  position: absolute; top: calc(100% + 5px); left: 0;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.2);
+  padding: 12px 14px 10px; min-width: 272px;
+  z-index: 900;
+}
+.base-cal-pop[hidden] { display: none !important; }
+.base-cal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px; gap: 6px;
+}
+.base-cal-nav {
+  flex-shrink: 0; width: 32px; height: 32px; border: none; border-radius: 8px;
+  background: #e5e7eb; font-size: 20px; line-height: 1; cursor: pointer;
+  color: #1a3a5c; display: flex; align-items: center; justify-content: center;
+}
+.base-cal-nav:hover { background: #d1d5db; }
+.base-cal-title { font-size: 15px; font-weight: 700; color: #1a3a5c; }
+.base-cal-dow {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+  margin-bottom: 4px; text-align: center; font-size: 11px; font-weight: 600;
+  color: #6b7280;
+}
+.base-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.base-cal-day {
+  min-height: 36px; border: none; border-radius: 8px;
+  background: #f3f4f6; font-size: 14px; font-weight: 600; color: #1f2937;
+  cursor: pointer; font-family: inherit;
+}
+.base-cal-day:hover:not(:disabled) { background: #e5e7eb; }
+.base-cal-day.muted { color: #9ca3af; font-weight: 500; background: #f9fafb; }
+.base-cal-day.weekend:not(.selected) { color: #b91c1c; }
+.base-cal-day.selected { background: #1a3a5c; color: #fff; }
+.base-cal-day.selected.weekend { color: #fff; }
+.base-cal-day.is-today:not(.selected) { box-shadow: inset 0 0 0 2px #ef4444; }
+.btn {
+  padding: 6px 12px; border: none; border-radius: 5px;
+  cursor: pointer; font-size: 12px; font-weight: 600; transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-blue  { background: #3b82f6; color: white; }
+.btn-gray  { background: #6b7280; color: white; }
+.btn-red   { background: #ef4444; color: white; }
+.btn-green { background: #22c55e; color: white; }
+
+/* ── TIMELINE OUTER ── */
+.timeline-outer {
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  margin-top: 10px;
+  border-top: 1px solid #e5e7eb;
+  padding: 12px; gap: 8px; min-height: 0; flex: 1;
+}
+
+/* ── ROW GROUP ── */
+.tl-row-group { display: flex; flex-shrink: 0; }
+
+.tl-left-sidebar {
+  width: 64px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  border-radius: 8px 0 0 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+}
+.tl-sidebar-header {
+  height: 54px; /* date 32 + hour 22 */
+  background: #1a3a5c;
+  border-bottom: 1px solid #15304a;
+}
+.tl-cat-label {
+  height: 110px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #1f4b74 0%, #1a3a5c 100%); color: white;
+  font-size: 13px; font-weight: 700;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  cursor: default;
+}
+
+.tl-row-content {
+  display: flex; flex-direction: column;
+  border-radius: 0 8px 8px 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+/* ── DATE / HOUR ROWS ── */
+.tl-date-row {
+  display: flex; height: 32px;
+  background: #1a3a5c; border-bottom: 1px solid #2d5a8e;
+}
+.tl-date-cell {
+  flex-shrink: 0; text-align: center;
+  border-right: 1px solid #2d5a8e;
+  color: white; font-size: 12px; font-weight: 600;
+  line-height: 32px; overflow: hidden;
+}
+.tl-date-cell.red-day  { color: #ff8080; }
+.tl-date-cell.today-hdr { background: #b91c1c; color: white; }
+
+.tl-hour-row {
+  display: flex; height: 22px;
+  background: #2d5a8e; border-bottom: 2px solid #1a3a5c;
+}
+.tl-hour-cell { flex-shrink: 0; position: relative; border-right: 1px solid #3b6ea5; }
+.tl-hour-tick {
+  position: absolute; top: 4px; font-size: 9px;
+  color: #93c5fd; transform: translateX(-50%); pointer-events: none;
+}
+
+/* ── BERTH ROW (per category) ── */
+.tl-berth-row {
+  position: relative; height: 110px;
+  background: white; overflow: visible; cursor: default;
+  border-top: 1px solid #e5e7eb;
+}
+.tl-berth-row:first-of-type { border-top: none; }
+
+.today-marker {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: #ef4444; z-index: 4; pointer-events: none;
+}
+/* ── CARGO BLOCKS ── */
+.cargo-block {
+  position: absolute; top: 8px; bottom: 8px;
+  border-radius: 6px; overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.18);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+  cursor: grab; user-select: none; z-index: 3;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 0 14px 0 8px; min-width: 24px;
+  transition: box-shadow 0.1s, outline 0.1s;
+  text-align: center;
+}
+.cargo-block:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.25); z-index: 4; }
+.cargo-block.dragging { cursor: grabbing; opacity: 0.82; z-index: 10; }
+.cargo-block.selected { outline: 3px solid #fbbf24; outline-offset: 1px; z-index: 5; }
+.cargo-block.cont-left  { border-left: 3px dashed rgba(255,255,255,0.5); border-radius: 0 6px 6px 0; }
+.cargo-block.cont-right { border-radius: 6px 0 0 6px; padding-right: 8px; }
+.cb-name { font-size: 14px; font-weight: 400; white-space: normal; overflow: hidden; line-height: 1.3; }
+.cb-name-strong { font-weight: 700; }
+.cb-sub  { font-size: 12px; opacity: 0.85; white-space: normal; overflow: hidden; line-height: 1.3; }
+.resize-handle {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 10px;
+  cursor: ew-resize; z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.08); border-radius: 0 5px 5px 0;
+}
+.resize-handle::after { content: '⋮'; font-size: 11px; color: rgba(0,0,0,0.35); }
+
+/* ── MODALS ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: white; border-radius: 10px;
+  padding: 24px; width: 440px; max-width: 96vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-height: 92vh; overflow-y: auto;
+}
+.modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #1a3a5c; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-group label { font-size: 12px; font-weight: 600; color: #374151; }
+.form-group input, .form-group select {
+  padding: 8px 10px; border: 1px solid #d1d5db;
+  border-radius: 5px; font-size: 13px; background: white;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none; border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+.modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.import-hint {
+  font-size: 12px; color: #6b7280; margin-bottom: 10px; line-height: 1.6;
+}
+.import-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.import-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr auto;
+  gap: 6px;
+}
+.import-row.cw1 {
+  grid-template-columns: 1fr 1fr auto;
+}
+.import-row.cw2 {
+  grid-template-columns: 1fr 1fr auto;
+}
+.import-row.silo {
+  grid-template-columns: 1fr 1fr auto;
+}
+.import-row input {
+  padding: 7px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.excel-grid-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+}
+.ship-combo {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+.ship-combo input {
+  width: 100%;
+  border-radius: 5px 0 0 5px;
+  border-right: none;
+}
+.ship-combo-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 0 5px 5px 0;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 11px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.ship-combo-btn:hover { background: #f3f4f6; }
+.ship-options {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  z-index: 1200;
+  max-height: 170px;
+  overflow-y: auto;
+  display: none;
+}
+.ship-options.show { display: block; }
+.ship-option {
+  width: 100%;
+  border: none;
+  background: #fff;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ship-option:hover { background: #f3f4f6; }
+.btn-mini {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+/* ── TOOLTIP ── */
+.tip {
+  position: fixed; background: rgba(15,23,42,0.95); color: white;
+  padding: 10px 14px; border-radius: 7px; font-size: 12px;
+  z-index: 9999; line-height: 1.75; max-width: 260px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); pointer-events: none; display: none;
+}
+.tip.show { display: block; }
+
+/* ── DELETE HINT ── */
+.del-hint {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(15,23,42,0.85); color: white;
+  padding: 7px 16px; border-radius: 20px; font-size: 12px;
+  pointer-events: none; z-index: 200; display: none;
+}
+.del-hint.show { display: block; }
+
+/* ── MOBILE ── */
+.mobile-menu-btn {
+  display: none;
+  background: rgba(255,255,255,0.15);
+  border: none; color: white;
+  font-size: 22px; line-height: 1;
+  padding: 4px 10px; border-radius: 6px;
+  cursor: pointer; flex-shrink: 0;
+}
+.header-btns {
+  display: contents;
+}
+@media (max-width: 768px) {
+  .app-header { position: relative; }
+  .app-header h1 { font-size: 14px; }
+  .mobile-menu-btn { display: block; }
+  .header-btns {
+    display: none;
+    position: absolute;
+    top: 100%; right: 0;
+    background: #1a3a5c;
+    padding: 10px 12px;
+    flex-direction: column;
+    gap: 6px;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    z-index: 150;
+    min-width: 140px;
+  }
+  .header-btns.open {
+    display: flex;
+  }
+  .header-btns .btn {
+    width: 100%; text-align: center;
+    padding: 10px; font-size: 14px;
+  }
+  .stats-bar { overflow-x: auto; flex-wrap: nowrap; }
+  .stats-items { flex-wrap: nowrap; }
+  .del-hint { display: none !important; }
+}
+
+@media print {
+  body { overflow: visible; height: auto; }
+  .app-header { position: static; box-shadow: none; }
+  .header-controls { display: none; }
+  .timeline-outer { overflow: visible; margin-top: 0; border-top: none; padding: 0; }
+  .del-hint, .tip { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="app-header">
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
+    <h1>반출 스케줄</h1>
+    <select style="padding:5px 10px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;font-weight:600;color:#1a3a5c;background:white;cursor:pointer;" onchange="switchBerth(this.value)">
+      <option value="schedule">7선석</option>
+      <option value="banchu" selected>반출</option>
+    </select>
+  </div>
+  <div class="header-controls">
+    <span class="range-label">기준</span>
+    <div class="base-cal-anchor" id="baseCalAnchor">
+      <input type="hidden" id="pickerBase">
+      <button type="button" class="base-cal-trigger" id="pickerBaseTrigger" onclick="toggleBaseCal(event)" aria-haspopup="dialog" aria-expanded="false" title="기준 날짜">
+        <span id="pickerBaseLabel"></span>
+        <span class="base-cal-chevron" aria-hidden="true">▼</span>
+      </button>
+      <div class="base-cal-pop" id="baseCalPop" role="dialog" aria-label="기준 날짜 선택" hidden>
+        <div class="base-cal-head">
+          <button type="button" class="base-cal-nav" onclick="baseCalPrevMonth(event)" aria-label="이전 달">‹</button>
+          <span class="base-cal-title" id="baseCalTitle"></span>
+          <button type="button" class="base-cal-nav" onclick="baseCalNextMonth(event)" aria-label="다음 달">›</button>
+        </div>
+        <div class="base-cal-dow" aria-hidden="true">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div class="base-cal-grid" id="baseCalGrid"></div>
+      </div>
+    </div>
+    <div class="header-btns" id="headerBtns">
+      <button class="btn btn-blue" onclick="openImportModal()">반출 추가</button>
+      <button class="btn btn-green" onclick="openExcelImportModal()">엑셀 Import</button>
+      <button class="btn btn-gray" onclick="exportCSV()">↓ CSV</button>
+    </div>
+    <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="메뉴">⋮</button>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="timeline-outer" id="tlOuter"></div>
+
+<!-- DELETE HINT -->
+<div class="del-hint" id="delHint">클릭: 선택 · Ctrl/Cmd+클릭: 다중 선택 · Delete: 삭제 · Ctrl/Cmd+Z: 되돌리기</div>
+
+<!-- CARGO MODAL -->
+<div class="modal-overlay" id="cargoModal">
+  <div class="modal">
+    <h2 id="mTitle">반출 추가</h2>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>카테고리 *</label>
+        <select id="fCat">
+          <option value="CW1">CW1</option>
+          <option value="CW2">CW2</option>
+          <option value="Silo">Silo</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>내용 *</label>
+        <input id="fName" placeholder="예: SM Diamond 반출">
+      </div>
+      <div class="form-group">
+        <label>시작 *</label>
+        <input type="datetime-local" id="fStart">
+      </div>
+      <div class="form-group">
+        <label>종료 *</label>
+        <input type="datetime-local" id="fEnd">
+      </div>
+      <div class="form-group full">
+        <label>색상</label>
+        <select id="fColor">
+          <option value="#3b82f6">파랑</option>
+          <option value="#22c55e">초록</option>
+          <option value="#f59e0b">주황</option>
+          <option value="#ef4444">빨강</option>
+          <option value="#a855f7">보라</option>
+          <option value="#06b6d4">하늘</option>
+          <option value="#9ca3af">회색</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-red" id="delBtn" style="margin-right:auto;display:none;" onclick="deleteItem()">삭제</button>
+      <button class="btn btn-gray" onclick="closeCargoModal()">취소</button>
+      <button class="btn btn-blue" onclick="saveCargo()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="width:560px;">
+    <h2>데이터 직접 입력</h2>
+    <div class="form-group full" style="margin-bottom:12px;">
+      <label>라인 선택</label>
+      <select id="importLine" onchange="updateImportHint()">
+        <option value="CW1">CW1</option>
+        <option value="CW2">CW2</option>
+        <option value="Silo">Silo</option>
+      </select>
+    </div>
+    <p class="import-hint" id="importHint"></p>
+    <div class="import-rows" id="importRows"></div>
+    <div style="display:flex;justify-content:flex-start;margin-bottom:4px;">
+      <button class="btn btn-gray btn-mini" onclick="addImportRow()">+ 행 추가</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeImportModal()">취소</button>
+      <button class="btn btn-blue" onclick="importFromForm()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXCEL IMPORT MODAL -->
+<div class="modal-overlay" id="excelImportModal">
+  <div class="modal" style="width:720px;max-width:96vw;">
+    <h2>엑셀 붙여넣기 Import</h2>
+    <div class="form-group full" style="margin-bottom:10px;">
+      <label>라인 선택</label>
+      <select id="excelImportLine">
+        <option value="CW1">CW1</option>
+        <option value="CW2" selected>CW2</option>
+      </select>
+    </div>
+    <p class="import-hint" style="margin-bottom:8px;">
+      엑셀에서 <b>칼럼 제목 제외</b> 후 행 데이터를 그대로 붙여넣어 주세요.<br>
+      반영 컬럼: <b>선명</b>, <b>접안일</b>, <b>수량(톤)</b> (화물은 색상 참고용으로만 사용)
+    </p>
+    <div class="excel-grid-wrap">
+      <table id="excelImportGridTable" style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;"></table>
+    </div>
+    <div style="display:flex;justify-content:flex-start;margin-top:10px;gap:6px;">
+      <button class="btn btn-gray btn-mini" onclick="addExcelImportGridRow()">+ 행 추가</button>
+      <button class="btn btn-gray btn-mini" onclick="clearExcelImportGrid()">지우기</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gray" onclick="closeExcelImportModal()">취소</button>
+      <button class="btn btn-blue" onclick="importFromExcelPaste()">가져오기</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="cw2ShipOptions">
+  <option value="JK군장호"></option>
+  <option value="한진그린호"></option>
+  <option value="코렉스여수호"></option>
+</datalist>
+
+<!-- TOOLTIP -->
+<div class="tip" id="tip"></div>
+
+<script>
+function toggleMobileMenu() {
+  const panel = document.getElementById('headerBtns');
+  panel.classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  const panel = document.getElementById('headerBtns');
+  if (panel && panel.classList.contains('open') &&
+      !panel.contains(e.target) &&
+      !e.target.closest('.mobile-menu-btn')) {
+    panel.classList.remove('open');
+  }
+});
+// ══════════════════════════════════════════
+//  CONSTANTS & STATE
+// ══════════════════════════════════════════
+const DAY_W        = 120;
+const DAYS_PER_ROW = 14;
+const TOTAL_DAYS   = 28;
+const SNAP_MS      = 30 * 60000;
+const KEY          = 'banchu_v1';
+const CATEGORIES   = ['CW1', 'CW2', 'Silo'];
+
+const HOLIDAYS = new Set([
+  '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
+  '2025-03-01','2025-05-05','2025-06-06','2025-08-15',
+  '2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-08','2025-10-09',
+  '2025-12-25',
+  '2026-01-01','2026-02-16','2026-02-17','2026-02-18',
+  '2026-03-01','2026-03-02','2026-05-05','2026-05-24','2026-05-25',
+  '2026-06-06','2026-08-15',
+  '2026-09-24','2026-09-25','2026-09-26',
+  '2026-10-03','2026-10-09','2026-12-25',
+]);
+
+let items      = [];
+let editId     = null;
+function modKey(ev) {
+  return !!(ev && (ev.ctrlKey || ev.metaKey));
+}
+let selectedIds = new Set();
+let drag       = null;
+let dragGhost  = null;
+let importEditId = null;
+const CW2_SHIP_OPTIONS = ['JK군장호', '코렉스여수호', '한진그린호'];
+// { el, cat, rowOffset } — rowOffset = global X offset (days*DAY_W) of this 14-day group
+let _berthRows = [];
+
+const undoStack = [];
+const MAX_UNDO  = 50;
+function pushUndo() {
+  undoStack.push(JSON.stringify(items));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+const tip = document.getElementById('tip');
+
+// ══════════════════════════════════════════
+//  DATE / TIME HELPERS
+// ══════════════════════════════════════════
+const pad = n => String(n).padStart(2,'0');
+function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function todayStr()   { return toDateStr(new Date()); }
+function parseDate(s) { return new Date(s + 'T00:00:00'); }
+function toDTLocal(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function parseDT(s) { return s ? new Date(s) : null; }
+function fmtDT(d) {
+  if (!d) return '';
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function getNowRounded() { const n = new Date(); n.setMinutes(0,0,0); return n; }
+function textColor(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return (r*.299 + g*.587 + b*.114) > 150 ? '#111' : '#fff';
+}
+
+/** 라인(CW1/CW2/Silo)별로 일정이 겹치지 않게 시작이 앞선 순으로 순연 */
+function resolveBanchuNonOverlap() {
+  for (const cat of CATEGORIES) {
+    const rowItems = items.filter(it =>
+      it.cat === cat && parseDT(it.start) && parseDT(it.end) && parseDT(it.end) > parseDT(it.start)
+    );
+    rowItems.sort((a, b) => {
+      const ds = parseDT(a.start) - parseDT(b.start);
+      if (ds !== 0) return ds;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    let cursor = 0;
+    for (const it of rowItems) {
+      const dur = parseDT(it.end) - parseDT(it.start);
+      let s = Math.max(parseDT(it.start).getTime(), cursor);
+      it.start = toDTLocal(new Date(s));
+      it.end = toDTLocal(new Date(s + dur));
+      cursor = s + dur;
+    }
+  }
+}
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+function switchBerth(val) {
+  if (val === 'schedule') window.location.href = '/schedule';
+}
+
+// ══════════════════════════════════════════
+//  VIEW RANGE
+// ══════════════════════════════════════════
+function initRange() {
+  const t = new Date();
+  const s = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  document.getElementById('pickerBase').value = toDateStr(s);
+  syncPickerBaseLabel();
+}
+function getViewStart() { return parseDate(document.getElementById('pickerBase').value); }
+function getTotalDays() {
+  return TOTAL_DAYS;
+}
+
+// ══════════════════════════════════════════
+//  기준일 커스텀 달력
+// ══════════════════════════════════════════
+const _baseCal = { viewY: 2000, viewM: 0 };
+
+function syncPickerBaseLabel() {
+  const inp = document.getElementById('pickerBase');
+  const lab = document.getElementById('pickerBaseLabel');
+  if (!inp || !lab) return;
+  const v = inp.value;
+  if (!v) { lab.textContent = '—'; return; }
+  const d = parseDate(v);
+  const w = ['일', '월', '화', '수', '목', '금', '토'];
+  lab.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} (${w[d.getDay()]})`;
+}
+
+function applyBaseDateView() {
+  render();
+  document.getElementById('tlOuter').scrollTop = 0;
+}
+
+function snapBaseCalViewToPicker() {
+  const d = parseDate(document.getElementById('pickerBase').value);
+  _baseCal.viewY = d.getFullYear();
+  _baseCal.viewM = d.getMonth();
+}
+
+function renderBaseCalMonth() {
+  const titleEl = document.getElementById('baseCalTitle');
+  const gridEl = document.getElementById('baseCalGrid');
+  const y = _baseCal.viewY;
+  const m = _baseCal.viewM;
+  titleEl.textContent = `${y}년 ${m + 1}월`;
+  gridEl.innerHTML = '';
+
+  const startDow = new Date(y, m, 1).getDay();
+  const dim = new Date(y, m + 1, 0).getDate();
+  const prevDim = new Date(y, m, 0).getDate();
+  const selected = document.getElementById('pickerBase').value;
+  const today = todayStr();
+  let dayNum = 1;
+  let nextMonthDay = 1;
+  const totalCells = Math.ceil((startDow + dim) / 7) * 7;
+
+  for (let c = 0; c < totalCells; c++) {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'base-cal-day';
+    let dateStr;
+    if (c < startDow) {
+      const pd = prevDim - (startDow - 1 - c);
+      dateStr = toDateStr(new Date(y, m - 1, pd));
+      cell.textContent = String(pd);
+      cell.classList.add('muted');
+    } else if (dayNum <= dim) {
+      dateStr = toDateStr(new Date(y, m, dayNum));
+      cell.textContent = String(dayNum);
+      dayNum++;
+    } else {
+      dateStr = toDateStr(new Date(y, m + 1, nextMonthDay));
+      cell.textContent = String(nextMonthDay);
+      cell.classList.add('muted');
+      nextMonthDay++;
+    }
+    const dow = parseDate(dateStr).getDay();
+    if (dow === 0 || dow === 6 || HOLIDAYS.has(dateStr)) cell.classList.add('weekend');
+    if (dateStr === selected) cell.classList.add('selected');
+    if (dateStr === today) cell.classList.add('is-today');
+    cell.addEventListener('click', e => { e.stopPropagation(); pickBaseDate(dateStr); });
+    gridEl.appendChild(cell);
+  }
+}
+
+function pickBaseDate(dateStr) {
+  document.getElementById('pickerBase').value = dateStr;
+  syncPickerBaseLabel();
+  applyBaseDateView();
+  closeBaseCal();
+}
+
+function baseCalPrevMonth(ev) {
+  ev.stopPropagation();
+  if (_baseCal.viewM === 0) { _baseCal.viewM = 11; _baseCal.viewY--; }
+  else _baseCal.viewM--;
+  renderBaseCalMonth();
+}
+
+function baseCalNextMonth(ev) {
+  ev.stopPropagation();
+  if (_baseCal.viewM === 11) { _baseCal.viewM = 0; _baseCal.viewY++; }
+  else _baseCal.viewM++;
+  renderBaseCalMonth();
+}
+
+function closeBaseCal() {
+  const pop = document.getElementById('baseCalPop');
+  const trg = document.getElementById('pickerBaseTrigger');
+  if (pop) pop.setAttribute('hidden', '');
+  if (trg) trg.setAttribute('aria-expanded', 'false');
+}
+
+function openBaseCal() {
+  const pop = document.getElementById('baseCalPop');
+  const trg = document.getElementById('pickerBaseTrigger');
+  if (!pop || !trg) return;
+  snapBaseCalViewToPicker();
+  renderBaseCalMonth();
+  pop.removeAttribute('hidden');
+  trg.setAttribute('aria-expanded', 'true');
+}
+
+function toggleBaseCal(ev) {
+  ev.stopPropagation();
+  const pop = document.getElementById('baseCalPop');
+  if (!pop) return;
+  if (pop.hasAttribute('hidden')) openBaseCal();
+  else closeBaseCal();
+}
+
+function onBaseCalDocClick(ev) {
+  const pop = document.getElementById('baseCalPop');
+  if (!pop || pop.hasAttribute('hidden')) return;
+  const anchor = document.getElementById('baseCalAnchor');
+  if (anchor && !anchor.contains(ev.target)) closeBaseCal();
+}
+
+function onBaseCalKeydown(ev) {
+  const pop = document.getElementById('baseCalPop');
+  if (!pop || pop.hasAttribute('hidden')) return;
+  if (ev.key === 'Escape') closeBaseCal();
+}
+
+// ══════════════════════════════════════════
+//  COORDINATE HELPERS
+// ══════════════════════════════════════════
+function dtToX(dt)  { return (dt - getViewStart()) / 86400000 * DAY_W; }
+function xToDt(x)   {
+  const raw = new Date(getViewStart().getTime() + (x / DAY_W) * 86400000);
+  return new Date(Math.round(raw.getTime() / SNAP_MS) * SNAP_MS);
+}
+// Returns { x: globalX, cat } for given mouse screen coords
+function clientToRow(cx, cy) {
+  for (const entry of _berthRows) {
+    const r = entry.el.getBoundingClientRect();
+    if (cy >= r.top - 10 && cy <= r.bottom + 10) {
+      return { x: entry.rowOffset + (cx - r.left), cat: entry.cat };
+    }
+  }
+  const first = _berthRows[0];
+  return { x: first ? (cx - first.el.getBoundingClientRect().left) : 0, cat: CATEGORIES[0] };
+}
+
+// ══════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════
+function render() {
+  for (const id of [...selectedIds]) {
+    if (!items.some(i => i.id === id)) selectedIds.delete(id);
+  }
+  const delHintEl = document.getElementById('delHint');
+  if (delHintEl) delHintEl.classList.toggle('show', selectedIds.size > 0);
+
+  const days  = getTotalDays();
+  const today = parseDate(todayStr());
+  const DOW   = ['일','월','화','수','목','금','토'];
+  const vs    = getViewStart();
+  const nRows = Math.ceil(days / DAYS_PER_ROW);
+
+  const outer = document.getElementById('tlOuter');
+  outer.innerHTML = '';
+  _berthRows = [];
+
+  for (let row = 0; row < nRows; row++) {
+    const rsd        = row * DAYS_PER_ROW;
+    const red        = Math.min(rsd + DAYS_PER_ROW, days);
+    const dir        = red - rsd;
+    const rowOffset  = rsd * DAY_W;            // global X of this row's day-0
+    const rowW       = dir * DAY_W;
+    const rowStartDt = new Date(vs.getTime() + rsd * 86400000);
+    const rowEndDt   = new Date(vs.getTime() + red * 86400000);
+
+    const rg = document.createElement('div');
+    rg.className = 'tl-row-group';
+
+    /* ── Left sidebar ── */
+    const sidebar = document.createElement('div');
+    sidebar.className = 'tl-left-sidebar';
+
+    const sHdr = document.createElement('div');
+    sHdr.className = 'tl-sidebar-header';
+    sidebar.appendChild(sHdr);
+
+    CATEGORIES.forEach(cat => {
+      const lbl = document.createElement('div');
+      lbl.className = 'tl-cat-label';
+      lbl.textContent = cat;
+      sidebar.appendChild(lbl);
+    });
+
+    /* ── Row content ── */
+    const rc = document.createElement('div');
+    rc.className = 'tl-row-content';
+    rc.style.width = rowW + 'px';
+
+    /* Date row */
+    const dateRow = document.createElement('div');
+    dateRow.className = 'tl-date-row';
+    for (let i = 0; i < dir; i++) {
+      const d   = new Date(vs.getTime() + (rsd + i) * 86400000);
+      const dow = d.getDay();
+      const isT   = d.getTime() === today.getTime();
+      const isRed = dow === 0 || dow === 6 || HOLIDAYS.has(toDateStr(d));
+      const cell  = document.createElement('div');
+      cell.className = 'tl-date-cell' + (isT ? ' today-hdr' : isRed ? ' red-day' : '');
+      cell.style.width = DAY_W + 'px';
+      cell.innerHTML = `${d.getMonth()+1}/${d.getDate()} <span style="font-size:9px;opacity:.7">${DOW[dow]}</span>`;
+      dateRow.appendChild(cell);
+    }
+
+    /* Hour row */
+    const hourRow = document.createElement('div');
+    hourRow.className = 'tl-hour-row';
+    for (let i = 0; i < dir; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'tl-hour-cell';
+      cell.style.width = DAY_W + 'px';
+      [0, 6, 12, 18].forEach(h => {
+        const tick = document.createElement('span');
+        tick.className = 'tl-hour-tick';
+        tick.style.left = (h / 24) * DAY_W + 'px';
+        tick.textContent = h;
+        cell.appendChild(tick);
+      });
+      hourRow.appendChild(cell);
+    }
+
+    rc.appendChild(dateRow);
+    rc.appendChild(hourRow);
+
+    /* ── One berth row per category ── */
+    CATEGORIES.forEach(cat => {
+      const berthRow = document.createElement('div');
+      berthRow.className = 'tl-berth-row';
+      berthRow.dataset.cat = cat;
+
+      // Grid canvas
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:0;';
+      canvas.width = rowW; canvas.height = 110;
+      const ctx = canvas.getContext('2d');
+      for (let i = 0; i <= dir; i++) {
+        const x = i * DAY_W;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 110);
+        ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      for (let i = 0; i < dir; i++) {
+        const x = i * DAY_W + DAY_W / 2;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 110);
+        ctx.strokeStyle = '#f3f4f6'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      berthRow.appendChild(canvas);
+
+      // Today marker
+      if (today >= rowStartDt && today < rowEndDt) {
+        const tlx = (today - rowStartDt) / 86400000 * DAY_W;
+        const m = document.createElement('div');
+        m.className = 'today-marker'; m.style.left = tlx + 'px';
+        berthRow.appendChild(m);
+      }
+
+      // Blocks for this category
+      items.filter(it => it.cat === cat).forEach(item => {
+        const s = parseDT(item.start), e = parseDT(item.end);
+        if (!s || !e) return;
+        if (e <= rowStartDt || s >= rowEndDt) return;
+
+        const fromPrev = s < rowStartDt;
+        const toNext   = e > rowEndDt;
+        const cs = fromPrev ? rowStartDt : s;
+        const ce = toNext   ? rowEndDt   : e;
+        const lx = (cs - rowStartDt) / 86400000 * DAY_W;
+        const lw = Math.max((ce - cs) / 86400000 * DAY_W, 20);
+
+        const el = document.createElement('div');
+        el.dataset.id = item.id;
+        el.className = 'cargo-block'
+          + (fromPrev ? ' cont-left' : '')
+          + (toNext   ? ' cont-right' : '')
+          + (selectedIds.has(item.id) ? ' selected' : '');
+        const blockColor = getItemColor(item);
+        el.style.background = blockColor;
+        el.style.color = item.cat === 'Silo' ? '#000000' : textColor(blockColor);
+        el.innerHTML = `
+          ${fromPrev ? '<div style="font-size:10px;flex-shrink:0">◀</div>' : ''}
+          <div class="cb-name">${getDisplayNameMarkup(item)}</div>
+          ${!toNext ? `<div class="resize-handle" data-rh="${item.id}"></div>` : ''}`;
+        el.style.left  = lx + 'px';
+        el.style.width = lw + 'px';
+
+        el.addEventListener('mouseenter', ev => showTip(ev, item.id));
+        el.addEventListener('mouseleave', hideTip);
+        el.addEventListener('click',    ev => { ev.stopPropagation(); selectBlock(item.id, ev); });
+        el.addEventListener('dblclick', ev => { ev.stopPropagation(); openImportModal(item.id); });
+        el.addEventListener('mousedown', ev => onBlockMouseDown(ev, item.id));
+        berthRow.appendChild(el);
+      });
+
+      berthRow.addEventListener('click', e => {
+        if (e.target === berthRow || e.target.tagName === 'CANVAS') deselectBlock();
+      });
+      berthRow.addEventListener('dblclick', e => {
+        if (e.target === berthRow || e.target.tagName === 'CANVAS') openImportModal(null, cat);
+      });
+
+      rc.appendChild(berthRow);
+      _berthRows.push({ el: berthRow, cat, rowOffset });
+    });
+
+    rg.appendChild(sidebar);
+    rg.appendChild(rc);
+    outer.appendChild(rg);
+  }
+}
+
+// ══════════════════════════════════════════
+//  SELECTION & KEYBOARD
+// ══════════════════════════════════════════
+function selectBlock(id, ev) {
+  if (modKey(ev)) {
+    if (selectedIds.has(id)) selectedIds.delete(id);
+    else selectedIds.add(id);
+  } else {
+    selectedIds = new Set([id]);
+  }
+  document.querySelectorAll('.cargo-block').forEach(el => {
+    el.classList.toggle('selected', selectedIds.has(el.dataset.id));
+  });
+  document.getElementById('delHint').classList.toggle('show', selectedIds.size > 0);
+}
+function deselectBlock() {
+  selectedIds.clear();
+  document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('delHint').classList.remove('show');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.key === 'z' || e.key === 'Z') && modKey(e)) {
+    e.preventDefault();
+    if (document.querySelector('.modal-overlay.show')) return;
+    if (undoStack.length === 0) return;
+    items = JSON.parse(undoStack.pop());
+    save(); render(); return;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+    if (document.querySelector('.modal-overlay.show')) return;
+    const ids = [...selectedIds];
+    const picked = ids.map(id => items.find(x => x.id === id)).filter(Boolean);
+    if (!picked.length) return;
+    const msg =
+      picked.length === 1
+        ? `"${picked[0].name}" 을(를) 삭제하시겠습니까?`
+        : `선택한 ${picked.length}개 일정을 삭제하시겠습니까?\n${picked
+            .slice(0, 5)
+            .map(i => i.name)
+            .join(', ')}${picked.length > 5 ? ' …' : ''}`;
+    if (confirm(msg)) {
+      pushUndo();
+      const idSet = new Set(ids);
+      items = items.filter(x => !idSet.has(x.id));
+      selectedIds.clear();
+      save(); render();
+    }
+  }
+  if (e.key === 'Escape') {
+    if (document.getElementById('excelImportModal').classList.contains('show')) { closeExcelImportModal(); return; }
+    if (document.getElementById('importModal').classList.contains('show')) { closeImportModal(); return; }
+    if (document.getElementById('cargoModal').classList.contains('show')) { closeCargoModal(); return; }
+    deselectBlock();
+  }
+});
+
+// ══════════════════════════════════════════
+//  DRAG & DROP
+// ══════════════════════════════════════════
+function onBlockMouseDown(e, id) {
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation(); hideTip();
+  const item = items.find(x => x.id === id); if (!item) return;
+  const s = parseDT(item.start), en = parseDT(item.end);
+  const gStartX = dtToX(s), gEndX = dtToX(en);
+  const rowInfo  = clientToRow(e.clientX, e.clientY);
+  const isResize = !!e.target.closest('[data-rh]');
+  const isCopy   = modKey(e) && !isResize;
+  const srcRect  = e.currentTarget.getBoundingClientRect();
+
+  drag = isResize
+    ? { type:'resize', id, gStartX, gEndX,
+        mouseOffsetFromEnd: gEndX - rowInfo.x,
+        initMouseX: rowInfo.x, moved: false,
+        ghostLeft: srcRect.left, ghostTop: srcRect.top, ghostW: srcRect.width, ghostH: srcRect.height }
+    : { type:'move', id, gStartX, gEndX,
+        mouseOffsetFromStart: rowInfo.x - gStartX,
+        initMouseX: rowInfo.x, moved: false, isCopy,
+        ghostLeft: srcRect.left, ghostTop: srcRect.top, ghostW: srcRect.width, ghostH: srcRect.height,
+        mouseOffsetFromLeft: e.clientX - srcRect.left };
+}
+
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const rowInfo = clientToRow(e.clientX, e.clientY);
+  const mouseX  = rowInfo.x;
+  if (Math.abs(mouseX - drag.initMouseX) > 5) drag.moved = true;
+  if (!drag.moved) return;
+
+  if (!dragGhost) {
+    const srcEl = document.querySelector(`[data-id="${drag.id}"]`);
+    if (srcEl) {
+      dragGhost = document.createElement('div');
+      dragGhost.className = srcEl.className.replace(' selected','') + ' dragging';
+      dragGhost.style.cssText =
+        `position:fixed;top:${drag.ghostTop}px;left:${drag.ghostLeft}px;` +
+        `width:${drag.ghostW}px;height:${drag.ghostH}px;` +
+        `z-index:9999;pointer-events:none;opacity:0.85;border-radius:6px;` +
+        `background:${srcEl.style.background};color:${srcEl.style.color};`;
+      dragGhost.innerHTML = srcEl.innerHTML;
+      document.body.appendChild(dragGhost);
+    }
+    if (!drag.isCopy) {
+      document.querySelectorAll(`[data-id="${drag.id}"]`).forEach(el => el.classList.add('dragging'));
+    }
+  }
+
+  if (dragGhost) {
+    if (drag.type === 'move') {
+      dragGhost.style.left = (e.clientX - drag.mouseOffsetFromLeft) + 'px';
+    } else {
+      dragGhost.style.width = Math.max(20, e.clientX - drag.ghostLeft) + 'px';
+    }
+  }
+});
+
+document.addEventListener('mouseup', e => {
+  if (!drag) return;
+  if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+  document.querySelectorAll(`[data-id="${drag.id}"]`).forEach(el => el.classList.remove('dragging'));
+  const item = items.find(x => x.id === drag.id);
+  if (drag.moved && item) {
+    const rowInfo = clientToRow(e.clientX, e.clientY);
+    const mouseX  = rowInfo.x;
+    pushUndo();
+    if (drag.type === 'move') {
+      const newStart = xToDt(Math.max(0, mouseX - drag.mouseOffsetFromStart));
+      const dur      = parseDT(item.end) - parseDT(item.start);
+      if (drag.isCopy) {
+        items.push({
+          ...item,
+          id:    Date.now().toString() + '_c',
+          cat:   rowInfo.cat,
+          start: toDTLocal(newStart),
+          end:   toDTLocal(new Date(newStart.getTime() + dur)),
+        });
+      } else {
+        item.start = toDTLocal(newStart);
+        item.end   = toDTLocal(new Date(newStart.getTime() + dur));
+        item.cat   = rowInfo.cat;
+      }
+    } else {
+      const newEnd = xToDt(Math.max(drag.gStartX + DAY_W / 24, mouseX + drag.mouseOffsetFromEnd));
+      const minEnd = new Date(parseDT(item.start).getTime() + SNAP_MS);
+      item.end = toDTLocal(newEnd > minEnd ? newEnd : minEnd);
+    }
+    resolveBanchuNonOverlap();
+    drag = null; save(); render();
+  } else {
+    drag = null;
+  }
+});
+document.addEventListener('selectstart', e => { if (drag) e.preventDefault(); });
+
+// ══════════════════════════════════════════
+//  TOOLTIP
+// ══════════════════════════════════════════
+function showTip(e, id) {
+  if (drag) return;
+  const item = items.find(x => x.id === id); if (!item) return;
+  const s = parseDT(item.start), en = parseDT(item.end);
+  const hrs = ((en - s) / 3600000).toFixed(1);
+  let html = `<b>[${item.cat}] ${getDisplayName(item)}</b><br>`;
+  html += `시작: ${fmtDT(s)}<br>종료: ${fmtDT(en)}<br>`;
+  html += `소요: <b>${hrs}h</b> (${(hrs/24).toFixed(2)}일)`;
+  html += `<br><span style="opacity:.5;font-size:10px">클릭:선택 · Ctrl/Cmd+클릭:다중 · 더블클릭:수정 · Delete:삭제 · Ctrl/Cmd+Z:되돌리기</span>`;
+  tip.innerHTML = html; tip.classList.add('show'); moveTip(e);
+}
+function moveTip(e) { tip.style.left = (e.clientX+14)+'px'; tip.style.top = (e.clientY+14)+'px'; }
+function hideTip()  { tip.classList.remove('show'); }
+document.addEventListener('mousemove', e => { if (tip.classList.contains('show')) moveTip(e); });
+
+// ══════════════════════════════════════════
+//  CARGO MODAL
+// ══════════════════════════════════════════
+function openCargoModal(id = null, defaultCat = null) {
+  editId = id;
+  document.getElementById('mTitle').textContent = id ? '반출 수정' : '반출 추가';
+  document.getElementById('delBtn').style.display = id ? 'block' : 'none';
+  if (id) {
+    const it = items.find(x => x.id === id);
+    document.getElementById('fCat').value   = it.cat   || 'CW1';
+    document.getElementById('fName').value  = it.name  || '';
+    document.getElementById('fStart').value = it.start || '';
+    document.getElementById('fEnd').value   = it.end   || '';
+    document.getElementById('fColor').value = it.color || '#3b82f6';
+  } else {
+    document.getElementById('fCat').value   = defaultCat || 'CW1';
+    document.getElementById('fName').value  = '';
+    const now = getNowRounded();
+    document.getElementById('fStart').value = toDTLocal(now);
+    document.getElementById('fEnd').value   = toDTLocal(new Date(now.getTime() + 86400000));
+    document.getElementById('fColor').value = '#3b82f6';
+  }
+  document.getElementById('cargoModal').classList.add('show');
+  setTimeout(() => document.getElementById('fName').focus(), 50);
+}
+function closeCargoModal() {
+  document.getElementById('cargoModal').classList.remove('show');
+  editId = null;
+}
+function saveCargo() {
+  const cat   = document.getElementById('fCat').value;
+  const name  = document.getElementById('fName').value.trim();
+  const start = document.getElementById('fStart').value;
+  const end   = document.getElementById('fEnd').value;
+  if (!name || !start || !end) { alert('내용, 시작, 종료는 필수입니다.'); return; }
+  if (parseDT(end) <= parseDT(start)) { alert('종료 시간이 시작 시간보다 늦어야 합니다.'); return; }
+  const entry = {
+    id:    editId || Date.now().toString(),
+    cat, name, start, end,
+    color: document.getElementById('fColor').value,
+  };
+  pushUndo();
+  if (editId) { items[items.findIndex(x => x.id === editId)] = entry; }
+  else        { items.push(entry); }
+  resolveBanchuNonOverlap();
+  save(); closeCargoModal(); render();
+}
+function deleteItem() {
+  if (!editId) return;
+  const it = items.find(x => x.id === editId);
+  if (confirm(`"${it?.name}" 을(를) 삭제하시겠습니까?`)) {
+    pushUndo();
+    items = items.filter(x => x.id !== editId);
+    selectedIds.delete(editId);
+    save(); closeCargoModal(); render();
+  }
+}
+
+// 오버레이 클릭으로 닫기
+const _cargoEl = document.getElementById('cargoModal');
+let _mdTarget = null;
+_cargoEl.addEventListener('mousedown', e => { _mdTarget = e.target; });
+_cargoEl.addEventListener('click', e => {
+  if (e.target.id === 'cargoModal' && _mdTarget?.id === 'cargoModal') closeCargoModal();
+  _mdTarget = null;
+});
+_cargoEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName !== 'SELECT') { e.preventDefault(); saveCargo(); }
+});
+
+// ══════════════════════════════════════════
+//  IMPORT (라인별 열 형식)
+// ══════════════════════════════════════════
+const DEFAULT_CW1_CARGO = '슬라그';
+const CW1_TON_PER_HOUR = 400;
+const CW2_TON_PER_HOUR = 900;
+const DEFAULT_CW2_CARGO = '석탄';
+const CARGO_COLOR_MAP = {
+  '석탄': '#9ca3af',
+  '슬라그': '#fb923c',
+  '수재 슬래그': '#b8b0a0',
+};
+
+function normalizeCargoName(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function getCargoColor(cargoText) {
+  const normalized = normalizeCargoName(cargoText);
+  if (normalized === '석탄') return CARGO_COLOR_MAP['석탄'];
+  if (normalized === '슬라그') return CARGO_COLOR_MAP['슬라그'];
+  if (normalized === '수재 슬래그' || normalized === '수재슬래그') return CARGO_COLOR_MAP['수재 슬래그'];
+  return null;
+}
+
+function getItemColor(item) {
+  const byCargo = getCargoColor(item?.cargo);
+  if (byCargo) return byCargo;
+  if (item?.cat === 'CW2') return CARGO_COLOR_MAP['석탄'];
+  if (item?.cat === 'CW1') return CARGO_COLOR_MAP['슬라그'];
+  return item?.color || '#3b82f6';
+}
+
+function parseQtyToTon(qtyText) {
+  const raw = String(qtyText || '').trim();
+  if (!raw) return 0;
+  const n = parseFloat(raw.replace(/,/g, '').replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  return /천톤/i.test(raw) ? n * 1000 : n;
+}
+
+function parseEtaToDateTime(etaText) {
+  const raw = String(etaText || '').trim();
+  if (!raw) return null;
+
+  const normalized = raw
+    .replace(/[년.-]/g, '/')
+    .replace(/[월]/g, '/')
+    .replace(/[일]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const datePart = normalized.match(/(\d{1,4})\/(\d{1,2})(?:\/(\d{1,2}))?/);
+  if (!datePart) {
+    const fallback = new Date(raw);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  const nowYear = new Date().getFullYear();
+  let year = nowYear;
+  let month;
+  let day;
+
+  if (datePart[3]) {
+    if (datePart[1].length === 4) {
+      year = Number(datePart[1]);
+      month = Number(datePart[2]);
+      day = Number(datePart[3]);
+    } else {
+      month = Number(datePart[1]);
+      day = Number(datePart[2]);
+    }
+  } else {
+    month = Number(datePart[1]);
+    day = Number(datePart[2]);
+  }
+
+  let hour = 8;
+  let minute = 0;
+  const upper = normalized.toUpperCase();
+  const timeMatch = normalized.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (timeMatch) {
+    hour = Number(timeMatch[1]);
+    minute = Number(timeMatch[2]);
+  } else if (upper.includes('PM')) {
+    hour = 15;
+  } else if (upper.includes('AM')) {
+    hour = 9;
+  }
+
+  if (upper.includes('PM') && hour < 12) hour += 12;
+  if (upper.includes('AM') && hour === 12) hour = 0;
+
+  const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function getCW2Owner(shipName) {
+  const s = (shipName || '').replace(/\s+/g, '').trim();
+  if (s === 'JK군장호') return 'SGC에너지';
+  if (s === '코렉스여수호' || s === '한진그린호') return '남동발전';
+  return '';
+}
+
+function formatQtyLabel(qtyText) {
+  const ton = parseQtyToTon(qtyText);
+  if (ton > 0) {
+    const kiloTon = Math.round((ton / 1000) * 10) / 10;
+    return `${kiloTon.toFixed(1)}천톤`;
+  }
+  return (qtyText || '').trim();
+}
+
+function formatSiloName(nameText) {
+  const raw = String(nameText || '').trim();
+  const m = raw.match(/^Silo\s*([^\s,·]+)\s*[·,]?\s*(.*)$/i);
+  if (!m) return raw;
+  const siloNo = (m[1] || '').trim();
+  const qtyRaw = (m[2] || '').trim();
+  if (!siloNo) return raw;
+  if (!qtyRaw) return `Silo ${siloNo}`;
+  const qtyLabel = formatQtyLabel(qtyRaw);
+  return qtyLabel ? `Silo ${siloNo} · ${qtyLabel}` : `Silo ${siloNo} · ${qtyRaw}`;
+}
+
+function formatVesselQtyName(nameText) {
+  const raw = String(nameText || '').trim();
+  const m = raw.match(/^(.*?)[,\s]+([\d.,]+)\s*(천톤|톤)$/i);
+  if (!m) return raw;
+  const title = (m[1] || '').trim();
+  const ton = parseQtyToTon(`${m[2]}${m[3]}`);
+  if (!title || ton <= 0) return raw;
+  return `${title} ${formatQtyLabel(ton)}`;
+}
+
+function getDisplayName(item) {
+  const name = item?.name || '';
+  if (item?.cat === 'Silo') return formatSiloName(name);
+  return formatVesselQtyName(name);
+}
+
+function escHtml(v) {
+  return String(v || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getDisplayNameMarkup(item) {
+  const text = getDisplayName(item);
+  if (item?.cat === 'Silo') {
+    const m = text.match(/^(Silo\s*[^\s,·]+)(\s*[·,]\s*.+)?$/i);
+    if (m) {
+      const head = escHtml((m[1] || '').trim());
+      const tail = escHtml(m[2] || '');
+      return tail ? `<span class="cb-name-strong">${head}</span>${tail}` : `<span class="cb-name-strong">${head}</span>`;
+    }
+    return escHtml(text);
+  }
+
+  const m = text.match(/^(.*?)(\s+[\d.,]+\s*천톤)$/i);
+  if (!m) return escHtml(text);
+  const ship = escHtml((m[1] || '').trim());
+  const qty = escHtml(m[2] || '');
+  return `<span class="cb-name-strong">${ship}</span>${qty}`;
+}
+
+function updateImportHint() {
+  const line = document.getElementById('importLine').value;
+  const el = document.getElementById('importHint');
+  if (line === 'CW1') {
+    el.innerHTML = '<b>입력 항목:</b> 선박명 · 화물 · 물량(톤)<br><span style="color:#6b7280">작업률 <b>400톤/시간</b> 기준으로 기간 자동 계산</span>';
+  } else if (line === 'CW2') {
+    el.innerHTML = '<b>입력 항목:</b> 선박명 · 화물 · 물량(톤)<br><span style="color:#6b7280">작업률 <b>900톤/시간</b> 기준으로 기간 자동 계산</span>';
+  } else {
+    el.innerHTML = '<b>입력 항목:</b> Silo번호 · 물량(톤)<br><span style="color:#6b7280">Silo는 기간 자동 계산 없이 생성 후 수기 조정</span>';
+  }
+  importRowsData = [makeImportRow(line)];
+  renderImportRows();
+}
+
+function rowFromExistingItem(item, line) {
+  const nameText = (item?.name || '').trim();
+  if (line === 'Silo') {
+    const m = nameText.match(/^Silo\s*([^\s,·]+)\s*[·,]?\s*(.*)$/i);
+    const qtyTon = (m && m[2]) ? parseQtyToTon((m[2] || '').trim()) : 0;
+    return { siloNo: (m && m[1]) ? m[1] : '', qty: qtyTon > 0 ? String(Math.round(qtyTon)) : '' };
+  }
+  const m = nameText.match(/^(.*?)[,\s]+([\d.,]+)\s*(천톤|톤)$/i);
+  const ship = m ? m[1].trim() : nameText;
+  const qtyTon = m ? parseQtyToTon(`${m[2]}${m[3]}`) : 0;
+  const qty = qtyTon > 0 ? String(Math.round(qtyTon)) : '';
+  if (line === 'CW1') {
+    return { ship, cargo: item?.cargo || DEFAULT_CW1_CARGO, qty };
+  }
+  return { ship, cargo: item?.cargo || DEFAULT_CW2_CARGO, owner: item?.owner || getCW2Owner(ship), qty };
+}
+
+function openImportModal(editItemId = null, defaultLine = 'CW1') {
+  importEditId = editItemId;
+  if (editItemId) {
+    const target = items.find(x => x.id === editItemId);
+    const line = target?.cat || defaultLine;
+    document.getElementById('importLine').value = line;
+    updateImportHint();
+    importRowsData = [rowFromExistingItem(target, line)];
+    renderImportRows();
+  } else {
+    document.getElementById('importLine').value = defaultLine;
+    updateImportHint();
+  }
+  document.getElementById('importModal').classList.add('show');
+  setTimeout(() => {
+    const first = document.querySelector('#importRows input');
+    if (first) first.focus();
+  }, 50);
+}
+function closeImportModal() {
+  document.getElementById('importModal').classList.remove('show');
+  importEditId = null;
+}
+
+function openExcelImportModal(defaultLine = 'CW2') {
+  const lineEl = document.getElementById('excelImportLine');
+  if (lineEl) lineEl.value = defaultLine;
+  initExcelImportGrid();
+  document.getElementById('excelImportModal').classList.add('show');
+  setTimeout(() => {
+    const first = document.querySelector('#excelImportGridTable td[contenteditable="true"]');
+    if (first) first.focus();
+  }, 50);
+}
+
+function closeExcelImportModal() {
+  document.getElementById('excelImportModal').classList.remove('show');
+}
+
+const BANCHU_EXCEL_HEADERS = ['선명', '접안일', '화물', '수량(톤)'];
+let banchuExcelGridRows = [];
+
+function parseBanchuExcelRows(text) {
+  const rawLines = String(text || '').replace(/\r/g, '').split('\n').filter(l => l.trim());
+  const tabScore = rawLines.slice(0, 5).reduce((acc, line) => acc + (line.includes('\t') ? 1 : 0), 0);
+  const commaScore = rawLines.slice(0, 5).reduce((acc, line) => acc + (line.includes(',') ? 1 : 0), 0);
+  let lines = [];
+  if (tabScore > 0) lines = rawLines.map(l => l.split('\t'));
+  else if (commaScore > 0) lines = rawLines.map(l => l.split(','));
+  else lines = rawLines.map(l => l.trim().split(/\s+/));
+  return lines.filter(r => r.some(c => c.trim()));
+}
+
+function initExcelImportGrid(rowCount = 12) {
+  banchuExcelGridRows = Array.from({ length: rowCount }, () => Array(BANCHU_EXCEL_HEADERS.length).fill(''));
+  renderExcelImportGrid();
+}
+function addExcelImportGridRow() {
+  if (!banchuExcelGridRows.length) return initExcelImportGrid(1);
+  banchuExcelGridRows.push(Array(BANCHU_EXCEL_HEADERS.length).fill(''));
+  renderExcelImportGrid();
+}
+function clearExcelImportGrid() {
+  initExcelImportGrid();
+}
+function ensureExcelImportGridSize(minRows, minCols) {
+  const targetCols = Math.max(BANCHU_EXCEL_HEADERS.length, minCols || BANCHU_EXCEL_HEADERS.length);
+  while (banchuExcelGridRows.length < minRows) banchuExcelGridRows.push(Array(targetCols).fill(''));
+  banchuExcelGridRows = banchuExcelGridRows.map(r => {
+    const row = Array.isArray(r) ? r.slice() : [];
+    while (row.length < targetCols) row.push('');
+    return row.slice(0, BANCHU_EXCEL_HEADERS.length);
+  });
+}
+function renderExcelImportGrid() {
+  const table = document.getElementById('excelImportGridTable');
+  if (!table) return;
+  const thead = `<thead><tr>${BANCHU_EXCEL_HEADERS.map(h => `<th style="position:sticky;top:0;background:#f3f4f6;border:1px solid #e5e7eb;padding:6px 8px;white-space:nowrap;font-weight:700;">${h}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${banchuExcelGridRows.map((row, rIdx) =>
+    `<tr>${BANCHU_EXCEL_HEADERS.map((_, cIdx) =>
+      `<td contenteditable="true" data-r="${rIdx}" data-c="${cIdx}" style="border:1px solid #e5e7eb;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none;">${String(row[cIdx] || '').replace(/</g, '&lt;')}</td>`
+    ).join('')}</tr>`
+  ).join('')}</tbody>`;
+  table.innerHTML = thead + tbody;
+  bindExcelImportGridEvents();
+}
+function bindExcelImportGridEvents() {
+  const table = document.getElementById('excelImportGridTable');
+  if (!table) return;
+  table.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+    td.addEventListener('input', () => {
+      const r = Number(td.dataset.r || 0);
+      const c = Number(td.dataset.c || 0);
+      ensureExcelImportGridSize(r + 1, c + 1);
+      banchuExcelGridRows[r][c] = td.textContent.trim();
+    });
+    td.addEventListener('paste', e => {
+      e.preventDefault();
+      const clip = e.clipboardData?.getData('text/plain') || '';
+      const rows = parseBanchuExcelRows(clip);
+      if (!rows.length) return;
+      const sr = Number(td.dataset.r || 0);
+      const sc = Number(td.dataset.c || 0);
+      ensureExcelImportGridSize(sr + rows.length, sc + Math.max(...rows.map(r => r.length)));
+      rows.forEach((row, rOff) => row.forEach((val, cOff) => {
+        const rr = sr + rOff;
+        const cc = sc + cOff;
+        if (cc >= BANCHU_EXCEL_HEADERS.length) return;
+        banchuExcelGridRows[rr][cc] = String(val || '').trim();
+      }));
+      renderExcelImportGrid();
+    });
+  });
+}
+function getRowsFromExcelImportGrid() {
+  return (banchuExcelGridRows || [])
+    .map(r => (r || []).map(v => String(v || '').trim()).slice(0, BANCHU_EXCEL_HEADERS.length))
+    .filter(r => r.some(v => v));
+}
+
+function isLikelyDateText(text) {
+  return !!parseEtaToDateTime(text);
+}
+
+function normalizeExcelImportLogicalRows(rows) {
+  const normalized = [];
+  let current = null;
+
+  const flushCurrent = () => {
+    if (current && current.some(v => v)) normalized.push(current);
+    current = null;
+  };
+
+  rows.forEach(raw => {
+    const row = Array.from({ length: BANCHU_EXCEL_HEADERS.length }, (_, idx) => String(raw[idx] || '').trim());
+    if (!row.some(v => v)) return;
+
+    const hasShip = !!row[0];
+    if (hasShip) {
+      flushCurrent();
+      current = row;
+      return;
+    }
+
+    if (!current) {
+      current = row;
+      return;
+    }
+
+    // 병합 셀 복사 시 같은 건이 2줄로 나뉘는 경우를 한 건으로 복원
+    for (let c = 0; c < BANCHU_EXCEL_HEADERS.length; c++) {
+      if (!current[c] && row[c]) current[c] = row[c];
+    }
+
+    // 열 밀림 보정: date/cargo/qty 값이 왼쪽으로 밀려 들어온 경우
+    if (!current[1] && isLikelyDateText(row[0])) current[1] = row[0];
+    if (!current[2] && row[1] && !isLikelyDateText(row[1])) current[2] = row[1];
+    if (!current[3] && row[2]) current[3] = row[2];
+  });
+
+  flushCurrent();
+  return normalized;
+}
+
+function makeImportRow(line) {
+  if (line === 'Silo') {
+    return { siloNo: '', qty: '' };
+  }
+  if (line === 'CW1') {
+    return { ship: '', cargo: DEFAULT_CW1_CARGO, qty: '' };
+  }
+  return { ship: '', cargo: DEFAULT_CW2_CARGO, owner: '', qty: '' };
+}
+
+let importRowsData = [];
+
+function renderImportRows() {
+  const line = document.getElementById('importLine').value;
+  if (importRowsData.length === 0) importRowsData.push(makeImportRow(line));
+
+  const wrap = document.getElementById('importRows');
+  wrap.innerHTML = '';
+  importRowsData.forEach((row, idx) => {
+    const div = document.createElement('div');
+    div.className = 'import-row' + (line === 'Silo' ? ' silo' : '');
+    if (line === 'CW1') {
+      div.innerHTML = `
+        <input placeholder="선박명" value="${row.ship || ''}" oninput="updateImportField(${idx}, 'ship', this.value)">
+        <input placeholder="화물" value="${row.cargo || DEFAULT_CW1_CARGO}" oninput="updateImportField(${idx}, 'cargo', this.value)">
+        <button class="btn btn-red btn-mini" onclick="removeImportRow(${idx})">삭제</button>
+        <input placeholder="물량" value="${row.qty || ''}" oninput="updateImportField(${idx}, 'qty', this.value)">
+        <span></span>
+        <span></span>`;
+      div.classList.add('cw1');
+    } else if (line === 'CW2') {
+      const owner = row.owner || getCW2Owner(row.ship || '');
+      div.innerHTML = `
+        <div class="ship-combo">
+          <input list="cw2ShipOptions" placeholder="선박명" value="${row.ship || ''}" oninput="updateImportField(${idx}, 'ship', this.value)" onfocus="showShipOptions(${idx})" onkeydown="hideShipOptions()">
+          <button type="button" class="ship-combo-btn" onmousedown="event.preventDefault()" onclick="toggleShipOptions(${idx})">▼</button>
+          <div class="ship-options" data-ship-options="${idx}">
+            ${CW2_SHIP_OPTIONS.map(ship => `<button type="button" class="ship-option" onclick="selectShipOption(${idx}, '${ship}')">${ship}</button>`).join('')}
+          </div>
+        </div>
+        <input placeholder="화물" value="${row.cargo || DEFAULT_CW2_CARGO}" oninput="updateImportField(${idx}, 'cargo', this.value)">
+        <button class="btn btn-red btn-mini" onclick="removeImportRow(${idx})">삭제</button>
+        <input placeholder="화주" value="${owner}" oninput="updateImportField(${idx}, 'owner', this.value)">
+        <input placeholder="물량" value="${row.qty || ''}" oninput="updateImportField(${idx}, 'qty', this.value)">
+        <span></span>`;
+      div.classList.add('cw2');
+    } else {
+      div.innerHTML = `
+        <input placeholder="Silo번호" value="${row.siloNo || ''}" oninput="updateImportField(${idx}, 'siloNo', this.value)">
+        <input placeholder="물량" value="${row.qty || ''}" oninput="updateImportField(${idx}, 'qty', this.value)">
+        <button class="btn btn-red btn-mini" onclick="removeImportRow(${idx})">삭제</button>`;
+    }
+    wrap.appendChild(div);
+  });
+}
+
+function updateImportField(idx, key, value) {
+  if (!importRowsData[idx]) return;
+  importRowsData[idx][key] = value;
+  if (key === 'ship') {
+    const autoOwner = getCW2Owner(value);
+    importRowsData[idx].owner = autoOwner || importRowsData[idx].owner || '';
+    const ownerInputs = document.querySelectorAll('#importRows input[placeholder="화주"]');
+    const ownerInput = ownerInputs[idx];
+    if (ownerInput) ownerInput.value = importRowsData[idx].owner;
+  }
+}
+
+function hideShipOptions() {
+  document.querySelectorAll('.ship-options.show').forEach(el => el.classList.remove('show'));
+}
+
+function showShipOptions(idx) {
+  hideShipOptions();
+  const list = document.querySelector(`.ship-options[data-ship-options="${idx}"]`);
+  if (list) list.classList.add('show');
+}
+
+function toggleShipOptions(idx) {
+  const list = document.querySelector(`.ship-options[data-ship-options="${idx}"]`);
+  if (!list) return;
+  const willShow = !list.classList.contains('show');
+  hideShipOptions();
+  if (willShow) list.classList.add('show');
+}
+
+function selectShipOption(idx, shipName) {
+  updateImportField(idx, 'ship', shipName);
+  renderImportRows();
+  hideShipOptions();
+}
+
+function addImportRow() {
+  const line = document.getElementById('importLine').value;
+  importRowsData.push(makeImportRow(line));
+  renderImportRows();
+}
+
+function removeImportRow(idx) {
+  importRowsData.splice(idx, 1);
+  if (importRowsData.length === 0) addImportRow();
+  else renderImportRows();
+}
+
+function importFromForm() {
+  const line = document.getElementById('importLine').value;
+  if (importRowsData.length === 0) { alert('입력된 행이 없습니다.'); return; }
+
+  if (importEditId) {
+    const row = importRowsData[0];
+    const target = items.find(x => x.id === importEditId);
+    if (!target) { alert('수정 대상을 찾을 수 없습니다.'); return; }
+
+    let newName = target.name;
+    if (line === 'CW1') {
+      const ship = (row.ship || '').trim();
+      const cargoVal = (row.cargo || DEFAULT_CW1_CARGO).trim() || DEFAULT_CW1_CARGO;
+      if (!ship) { alert('선박명을 입력하세요.'); return; }
+      const qtyLabel = formatQtyLabel(row.qty || '');
+      newName = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+      const qtyTon = parseQtyToTon(row.qty || '');
+      const baseStart = parseDT(target.start);
+      const workHours = qtyTon > 0 ? (qtyTon / CW1_TON_PER_HOUR) : 24;
+      target.end = toDTLocal(new Date(baseStart.getTime() + workHours * 3600000));
+      target.cargo = cargoVal;
+      target.owner = '';
+      target.color = getCargoColor(cargoVal) || target.color || '#3b82f6';
+    } else if (line === 'CW2') {
+      const ship = (row.ship || '').trim();
+      const cargoVal = (row.cargo || DEFAULT_CW2_CARGO).trim() || DEFAULT_CW2_CARGO;
+      const ownerVal = (row.owner || getCW2Owner(ship)).trim();
+      if (!ship) { alert('선박명을 입력하세요.'); return; }
+      const qtyLabel = formatQtyLabel(row.qty || '');
+      newName = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+      const qtyTon = parseQtyToTon(row.qty || '');
+      const baseStart = parseDT(target.start);
+      const workHours = qtyTon > 0 ? (qtyTon / CW2_TON_PER_HOUR) : 24;
+      target.end = toDTLocal(new Date(baseStart.getTime() + workHours * 3600000));
+      target.cargo = cargoVal;
+      target.owner = ownerVal;
+      target.color = getCargoColor(cargoVal) || target.color || '#3b82f6';
+    } else {
+      const siloNo = (row.siloNo || '').trim();
+      if (!siloNo) { alert('Silo번호를 입력하세요.'); return; }
+      const qty = (row.qty || '').trim();
+      const qtyLabel = formatQtyLabel(qty);
+      newName = qtyLabel ? `Silo ${siloNo} · ${qtyLabel}` : `Silo ${siloNo}`;
+      target.cargo = '';
+      target.owner = '';
+    }
+
+    pushUndo();
+    target.cat = line;
+    target.name = newName;
+    resolveBanchuNonOverlap();
+    save();
+    closeImportModal();
+    render();
+    return;
+  }
+
+  const vs = getViewStart();
+  let slot = new Date(vs.getFullYear(), vs.getMonth(), vs.getDate(), 8, 0, 0, 0);
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4'];
+  let added = 0;
+  const newItems = [];
+
+  for (let i = 0; i < importRowsData.length; i++) {
+    const row = importRowsData[i];
+    let cat, name, start, end;
+    let cargoVal = '';
+    let ownerVal = '';
+    let rowColor = '#3b82f6';
+
+    if (line === 'CW1') {
+      const ship = (row.ship || '').trim();
+      cargoVal = (row.cargo || DEFAULT_CW1_CARGO).trim() || DEFAULT_CW1_CARGO;
+      const qty = (row.qty || '').trim();
+      if (!ship) continue;
+      const qtyTon = parseQtyToTon(qty);
+      cat = 'CW1';
+      const qtyLabel = formatQtyLabel(qty);
+      name = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+      const workHours = qtyTon > 0 ? (qtyTon / CW1_TON_PER_HOUR) : 24;
+      const endDt = new Date(slot.getTime() + workHours * 3600000);
+      start = toDTLocal(slot);
+      end = toDTLocal(endDt);
+      slot = endDt;
+      rowColor = getCargoColor(cargoVal) || colors[added % colors.length];
+    } else if (line === 'CW2') {
+      const ship = (row.ship || '').trim();
+      cargoVal = (row.cargo || DEFAULT_CW2_CARGO).trim() || DEFAULT_CW2_CARGO;
+      ownerVal = (row.owner || getCW2Owner(ship)).trim();
+      const qty = (row.qty || '').trim();
+      if (!ship) continue;
+      cat = 'CW2';
+      const qtyLabel = formatQtyLabel(qty);
+      name = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+      const qtyTon = parseQtyToTon(qty);
+      start = toDTLocal(slot);
+      const endDt = new Date(slot.getTime() + (qtyTon > 0 ? (qtyTon / CW2_TON_PER_HOUR) : 24) * 3600000);
+      end = toDTLocal(endDt);
+      slot = endDt;
+      rowColor = getCargoColor(cargoVal) || colors[added % colors.length];
+    } else {
+      const siloNo = (row.siloNo || '').trim();
+      const qty = (row.qty || '').trim();
+      if (!siloNo) continue;
+      cat = 'Silo';
+      const qtyLabel = formatQtyLabel(qty);
+      name = qtyLabel ? `Silo ${siloNo} · ${qtyLabel}` : `Silo ${siloNo}`;
+      start = toDTLocal(slot);
+      const endDt = new Date(slot.getTime() + 86400000);
+      end = toDTLocal(endDt);
+      slot = endDt;
+      rowColor = colors[added % colors.length];
+    }
+
+    newItems.push({
+      id: 'imp_' + Date.now() + '_' + i,
+      cat,
+      name,
+      start,
+      end,
+      cargo: cargoVal,
+      owner: ownerVal,
+      color: rowColor,
+    });
+    added++;
+  }
+
+  if (added === 0) { alert('유효한 행이 없습니다. 열 순서와 라인 선택을 확인하세요.'); return; }
+  pushUndo();
+  newItems.forEach(it => items.push(it));
+  resolveBanchuNonOverlap();
+  save();
+  closeImportModal();
+  render();
+}
+
+function importFromExcelPaste() {
+  const line = document.getElementById('excelImportLine').value;
+  const rows = normalizeExcelImportLogicalRows(getRowsFromExcelImportGrid());
+
+  if (rows.length === 0) {
+    alert('입력된 데이터가 없습니다.');
+    return;
+  }
+
+  const tonPerHour = line === 'CW1' ? CW1_TON_PER_HOUR : CW2_TON_PER_HOUR;
+  const fallbackCargo = line === 'CW1' ? DEFAULT_CW1_CARGO : DEFAULT_CW2_CARGO;
+  const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4'];
+  const newItems = [];
+  let added = 0;
+
+  rows.forEach((cols, idx) => {
+    const ship = cols[0] || '';
+    const etaRaw = cols[1] || '';
+    const cargoVal = (cols[2] || fallbackCargo || '').trim() || fallbackCargo;
+    const qtyRaw = cols[3] || '';
+    if (!ship) return;
+
+    const startDt = parseEtaToDateTime(etaRaw);
+    if (!startDt) return;
+
+    const qtyTon = parseQtyToTon(qtyRaw);
+    const durationHours = qtyTon > 0 ? (qtyTon / tonPerHour) : 24;
+    const endDt = new Date(startDt.getTime() + durationHours * 3600000);
+    const qtyLabel = formatQtyLabel(qtyRaw);
+    const name = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+
+    newItems.push({
+      id: `imp_xl_${Date.now()}_${idx}`,
+      cat: line,
+      name,
+      start: toDTLocal(startDt),
+      end: toDTLocal(endDt),
+      cargo: cargoVal,
+      owner: line === 'CW2' ? getCW2Owner(ship) : '',
+      color: getCargoColor(cargoVal) || colors[added % colors.length],
+    });
+    added++;
+  });
+
+  if (newItems.length === 0) {
+    alert('가져올 수 있는 행이 없습니다. 선명/접안(예정)/수량(톤) 값을 확인해 주세요.');
+    return;
+  }
+
+  pushUndo();
+  newItems.forEach(it => items.push(it));
+  resolveBanchuNonOverlap();
+  save();
+  closeExcelImportModal();
+  render();
+  alert(`${newItems.length}개 일정이 반영되었습니다.`);
+}
+
+const _importModal = document.getElementById('importModal');
+let _importMdTarget = null;
+_importModal.addEventListener('mousedown', e => { _importMdTarget = e.target; });
+_importModal.addEventListener('click', e => {
+  if (e.target.id === 'importModal' && _importMdTarget?.id === 'importModal') closeImportModal();
+  _importMdTarget = null;
+});
+const _excelImportModal = document.getElementById('excelImportModal');
+let _excelImportMdTarget = null;
+_excelImportModal.addEventListener('mousedown', e => { _excelImportMdTarget = e.target; });
+_excelImportModal.addEventListener('click', e => {
+  if (e.target.id === 'excelImportModal' && _excelImportMdTarget?.id === 'excelImportModal') closeExcelImportModal();
+  _excelImportMdTarget = null;
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ship-combo')) hideShipOptions();
+});
+
+// ══════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════
+function exportCSV() {
+  const rows = [['카테고리','내용','시작','종료','소요(h)','소요(일)']];
+  items.forEach(i => {
+    const s = parseDT(i.start), e = parseDT(i.end);
+    const hrs = ((e - s) / 3600000).toFixed(1);
+    rows.push([i.cat, i.name, i.start, i.end, hrs, (hrs/24).toFixed(2)]);
+  });
+  const blob = new Blob(['\uFEFF' + rows.map(r => r.join(',')).join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = '반출부두_스케줄.csv'; a.click();
+}
+
+function save() {
+  fetch('/api/banchu', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  }).catch(err => console.warn('반출 저장 실패:', err));
+}
+
+// ══════════════════════════════════════════
+//  SCROLL TO TODAY
+// ══════════════════════════════════════════
+function scrollToToday() {
+  const outer  = document.getElementById('tlOuter');
+  const globalX = Math.max(0, dtToX(parseDate(todayStr())));
+  const rowIdx  = Math.floor(globalX / (DAYS_PER_ROW * DAY_W));
+  const rows    = outer.querySelectorAll('.tl-row-group');
+  if (rows[rowIdx]) {
+    const rowRect   = rows[rowIdx].getBoundingClientRect();
+    const outerRect = outer.getBoundingClientRect();
+    outer.scrollTop += rowRect.top - outerRect.top;
+  }
+}
+
+document.addEventListener('click', onBaseCalDocClick);
+document.addEventListener('keydown', onBaseCalKeydown);
+
+// ══════════════════════════════════════════
+//  INIT (async — DB에서 로드)
+// ══════════════════════════════════════════
+(async function init() {
+  try {
+    const res = await fetch('/api/banchu');
+    if (res.ok) items = await res.json();
+  } catch (e) {
+    console.warn('반출 로드 실패:', e);
+  }
+  initRange(); render(); scrollToToday();
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>

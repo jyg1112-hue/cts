@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --input-type=module)",
+      "Bash(node -e ':*)",
+      "Bash(awk -F'\\(' '{print $1}')",
+      "Bash(ls *.test.* tests/)",
+      "Bash(grep -h \"chart\\\\|Chart\\\\|canvas\\\\|echarts\\\\|chartjs\\\\|cdn\\\\|script src\" /Users/jo/Desktop/프로젝트/*.html)"
+    ]
+  }
+}
