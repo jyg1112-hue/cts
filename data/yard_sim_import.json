@@ -1,0 +1,58 @@
+{
+  "selfYard": {
+    "capa": 248400,
+    "initStock": 0,
+    "outMode": "fixed",
+    "outFixed": {
+      "transfer": 1200,
+      "land": 1800,
+      "seaPlans": [
+        {
+          "ton": 1600,
+          "cycleDays": 1
+        }
+      ],
+      "silo": 0,
+      "cts": 0,
+      "pTransfer": 0
+    },
+    "outDaily": {}
+  },
+  "rentYard": {
+    "capa": 172800,
+    "initStock": 0,
+    "outMode": "fixed",
+    "outFixed": {
+      "transfer": 0,
+      "land": 0,
+      "seaPlans": [
+        {
+          "ton": 0,
+          "cycleDays": 1
+        }
+      ],
+      "silo": 0,
+      "cts": 0,
+      "pTransfer": 0
+    },
+    "outDaily": {}
+  },
+  "silo": {
+    "currentStock": 0
+  },
+  "autoInbound": {},
+  "manualInbound": {},
+  "manualOutbound": {},
+  "manualOutboundDetail": {
+    "2026-05-05": {
+      "self": {
+        "transfer": 1200,
+        "land": 1800,
+        "silo": 0,
+        "cts": 0,
+        "pTransfer": 0
+      }
+    }
+  },
+  "lastFetched": null
+}

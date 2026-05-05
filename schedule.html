@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>7선석 하역 스케줄</title>
+<title>하역 스케줄</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -266,6 +266,33 @@ body {
   box-shadow: 0 20px 60px rgba(0,0,0,0.3);
   max-height: 92vh; overflow-y: auto;
 }
+.ship-modal {
+  width: min(560px, 96vw);
+  padding: 16px 18px;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.ship-modal .form-grid {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.ship-modal .form-group.full {
+  grid-column: 1 / -1;
+}
+.ship-modal .form-group.full.wide {
+  grid-column: 1 / -1;
+}
+.ship-modal .form-group label {
+  font-size: 11px;
+}
+.ship-modal .form-group input,
+.ship-modal .form-group select {
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.ship-modal .modal-footer {
+  margin-top: 12px;
+}
 .modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #1a3a5c; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-group { display: flex; flex-direction: column; gap: 4px; }
@@ -341,6 +368,30 @@ body {
   .stat strong { font-size: 12px; }
   .stat-sub { font-size: 9px; white-space: nowrap; }
   .del-hint { display: none !important; }
+  .ship-modal {
+    width: 96vw;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .ship-modal .form-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .ship-modal .form-group.full {
+    grid-column: 1 / -1;
+  }
+  .ship-modal .form-group.full.wide {
+    grid-column: 1 / -1;
+  }
+  .ship-modal .form-group label {
+    font-size: 12px;
+  }
+  .ship-modal .form-group input,
+  .ship-modal .form-group select {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
 }
 
 /* ── PRINT / PDF ── */
@@ -383,7 +434,7 @@ body {
 <div class="app-header">
   <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
     <a href="/" style="text-decoration:none;font-size:20px;line-height:1;" title="메인화면">🏠</a>
-    <h1>7선석 하역 스케줄</h1>
+    <h1>7선석 스케줄</h1>
     <select style="padding:5px 10px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;font-weight:600;color:#1a3a5c;background:white;cursor:pointer;" onchange="switchBerth(this.value)">
       <option value="schedule" selected>7선석</option>
       <option value="banchu">반출</option>
@@ -443,7 +494,7 @@ body {
 
 <!-- SHIP MODAL -->
 <div class="modal-overlay" id="shipModal">
-  <div class="modal">
+  <div class="modal ship-modal">
     <h2 id="mTitle">선박 추가</h2>
     <div class="form-grid">
       <div class="form-group full">
@@ -458,7 +509,7 @@ body {
           <option value="니켈">니켈</option>
         </select>
       </div>
-      <div class="form-group full">
+      <div class="form-group full wide">
         <label>화주</label>
         <div style="display:flex;gap:4px;">
           <input list="customerList" id="fCustomer" placeholder="선택 또는 직접 입력"
@@ -523,7 +574,7 @@ body {
         <label>출항</label>
         <input type="datetime-local" id="fEnd">
       </div>
-      <div class="form-group full" style="flex-direction:row;align-items:center;gap:8px;">
+      <div class="form-group full wide" style="flex-direction:row;align-items:center;gap:8px;">
         <span style="flex:1;"></span>
         <span style="font-size:12px;color:#374151;">색상</span>
         <span id="colorPreview" class="color-preview"></span>
@@ -578,6 +629,14 @@ body {
       </div>
       <div class="form-group full">
         <span class="hint" id="jHint">종료 시간 = 시작 + 입력한 일수</span>
+      </div>
+      <div class="form-group full" style="flex-direction:row;align-items:center;gap:8px;">
+        <input type="checkbox" id="jDuringWork" style="width:auto;">
+        <label for="jDuringWork" style="margin:0;">작업 중 정비</label>
+      </div>
+      <div class="form-group full">
+        <label>정비 내용</label>
+        <input id="jDetail" placeholder="예: 와이어 점검, 레일 윤활">
       </div>
     </div>
     <div class="modal-footer">
@@ -694,6 +753,30 @@ function formatMMDD(dateStr) {
   const dt = parseDT(dateStr) || parseDate(dateStr);
   if (!dt) return null;
   return `${pad(dt.getMonth() + 1)}/${pad(dt.getDate())}`;
+}
+function getDuringWorkJeonbiIntervalsMs() {
+  return items
+    .filter(i => i.type === 'jeonbi' && !!i.allowDuringWork && parseDT(i.start) && parseDT(i.end))
+    .map(i => ({ start: parseDT(i.start).getTime(), end: parseDT(i.end).getTime() }))
+    .filter(v => v.end > v.start);
+}
+function calcExtendedEndByDuringJeonbi(startMs, baseDurMs, duringIntervals) {
+  const base = Math.max(SNAP_MS, Number(baseDurMs) || SNAP_MS);
+  let endMs = startMs + base;
+  for (let guard = 0; guard < 12; guard++) {
+    const overlapMs = _calcOverlapMs(startMs, endMs, duringIntervals || []);
+    const nextEnd = startMs + base + overlapMs;
+    if (nextEnd === endMs) break;
+    endMs = nextEnd;
+  }
+  return endMs;
+}
+function getEffectiveShipEndMs(ship, duringIntervals) {
+  const s = parseDT(ship?.start);
+  const e = parseDT(ship?.end);
+  if (!s || !e || e <= s) return null;
+  const baseDur = Number(ship?.baseDurMs) > 0 ? Number(ship.baseDurMs) : (e.getTime() - s.getTime());
+  return calcExtendedEndByDuringJeonbi(s.getTime(), baseDur, duringIntervals || []);
 }
 function buildShipTitle(item) {
   const parts = [];
@@ -1074,10 +1157,12 @@ function renderStats(shouldScrollTimeline = true) {
   const elapsedHrs = (periodEnd - monthStart) / 3600000;
 
   // 척수·반입량: 출항(완료) 시각이 해당 월인 선박만 (예: 4/30~5/1 작업은 5월 완료 → 4월 척수 제외)
+  const duringWorkJeonbiIntervals = getDuringWorkJeonbiIntervalsMs();
   const completedInMonth = items.filter(i => {
     if (i.type !== 'ship') return false;
-    const s = parseDT(i.start), e = parseDT(i.end);
-    return s && e && e >= monthStart && e < monthEnd;
+    const s = parseDT(i.start);
+    const eMs = getEffectiveShipEndMs(i, duringWorkJeonbiIntervals);
+    return s && eMs && eMs >= monthStart.getTime() && eMs < monthEnd.getTime();
   });
 
   const coalCnt   = completedInMonth.filter(i => i.cargoType === '석탄').length;
@@ -1091,12 +1176,13 @@ function renderStats(shouldScrollTimeline = true) {
   const overlapIntervals = items
     .filter(i => {
       if (i.type !== 'ship') return false;
-      const s = parseDT(i.start), e = parseDT(i.end);
-      return s && e && e > monthStart && s < periodEnd;
+      const s = parseDT(i.start);
+      const eMs = getEffectiveShipEndMs(i, duringWorkJeonbiIntervals);
+      return s && eMs && eMs > monthStart.getTime() && s.getTime() < periodEnd.getTime();
     })
     .map(i => [
       Math.max(parseDT(i.start).getTime(), monthStart.getTime()),
-      Math.min(parseDT(i.end).getTime(),   periodEnd.getTime()),
+      Math.min(getEffectiveShipEndMs(i, duringWorkJeonbiIntervals), periodEnd.getTime()),
     ])
     .filter(([s, e]) => e > s)
     .sort((a, b) => a[0] - b[0]);
@@ -1484,6 +1570,7 @@ document.addEventListener('mouseup', e => {
         start: toDTLocal(newStart),
         end:   toDTLocal(new Date(newStart.getTime() + dur)),
       };
+      if (copy.type === 'ship') copy.baseDurMs = Number(item.baseDurMs) > 0 ? Number(item.baseDurMs) : dur;
       items.push(copy);
     } else if (drag.type === 'move') {
       const newStart = xToDt(Math.max(0, mouseX - drag.mouseOffsetFromStart));
@@ -1494,6 +1581,9 @@ document.addEventListener('mouseup', e => {
       const newEnd = xToDt(Math.max(drag.startX + DAY_W/24, mouseX + drag.mouseOffsetFromEnd));
       const minEnd = new Date(parseDT(item.start).getTime() + SNAP_MS);
       item.end = toDTLocal(newEnd > minEnd ? newEnd : minEnd);
+      if (item.type === 'ship') {
+        item.baseDurMs = Math.max(SNAP_MS, parseDT(item.end).getTime() - parseDT(item.start).getTime());
+      }
     }
     normalizeImportedShipSequenceWithGap(2);
     ensureNickelToCoalMaintCoverage();
@@ -1522,6 +1612,7 @@ function showTip(e, id) {
   if (item.bl)       html += `<br>B/L량: ${item.bl.toLocaleString()}톤`;
   if (item.rate)     html += `<br>하역율: ${item.rate}천톤/일`;
   if (item.customer) html += `<br>화주: ${item.customer}`;
+  if (item.type === 'jeonbi' && item.detail) html += `<br>정비내용: ${item.detail}`;
   html += `<br><span style="opacity:.5;font-size:10px">클릭:선택 · Ctrl/Cmd+클릭:다중 · 더블클릭:수정 · Delete:삭제 · Ctrl/Cmd+Z:되돌리기</span>`;
   tip.innerHTML = html; tip.classList.add('show'); moveTip(e);
 }
@@ -1731,6 +1822,33 @@ function _advancePastFrozenMs(sMs, durMs, frozenMerged) {
   }
   return s;
 }
+function _advancePastIntervalsMs(sMs, durMs, intervals) {
+  let s = sMs;
+  for (let guard = 0; guard < 2000; guard++) {
+    let hit = null;
+    for (const itv of intervals) {
+      if (s + durMs <= itv.start || s >= itv.end) continue;
+      hit = itv;
+      break;
+    }
+    if (!hit) return s;
+    s = hit.end;
+  }
+  return s;
+}
+function _calcOverlapMs(rangeStart, rangeEnd, intervals) {
+  if (!(rangeEnd > rangeStart) || !Array.isArray(intervals) || intervals.length === 0) return 0;
+  const clipped = [];
+  for (const itv of intervals) {
+    if (!itv) continue;
+    const s = Math.max(rangeStart, Number(itv.start || 0));
+    const e = Math.min(rangeEnd, Number(itv.end || 0));
+    if (e > s) clipped.push([s, e]);
+  }
+  if (!clipped.length) return 0;
+  const merged = _mergeIntervalsMs(clipped);
+  return merged.reduce((acc, v) => acc + (v.end - v.start), 0);
+}
 /**
  * 단일 선석: 선박·장비청소·정비가 시간으로 겹치지 않도록 순연 (시작 시각 순, 동시각이면 선박→청소→정비).
  * 새로 넣은 일정은 겹치면 앞선 일정 뒤로 밀려 뒤쪽 일정이 연쇄 이동한다.
@@ -1761,28 +1879,51 @@ function resolveBerthNonOverlap(opts = {}) {
     (it.type === 'jeonbi' && freezeJeonbi) || frozenIds.has(it.id);
 
   const frozenIntervals = [];
+  const frozenBlockingForJeonbiDuring = [];
+  const duringJeonbiIntervals = [];
   for (const it of blocks) {
+    const sMs = parseDT(it.start).getTime();
+    const eMs = parseDT(it.end).getTime();
+    if (it.type === 'jeonbi' && !!it.allowDuringWork) {
+      duringJeonbiIntervals.push({ start: sMs, end: eMs });
+    }
     if (isPinned(it)) {
-      frozenIntervals.push([parseDT(it.start).getTime(), parseDT(it.end).getTime()]);
+      frozenIntervals.push([sMs, eMs]);
+      if (it.type !== 'ship') frozenBlockingForJeonbiDuring.push({ start: sMs, end: eMs });
     }
   }
   const frozenMerged = _mergeIntervalsMs(frozenIntervals);
+  const placedBlockingForJeonbiDuring = [];
 
   let cursor = 0;
   for (const it of blocks) {
     if (isPinned(it)) {
+      if (it.type !== 'ship') {
+        placedBlockingForJeonbiDuring.push({
+          start: parseDT(it.start).getTime(),
+          end: parseDT(it.end).getTime(),
+        });
+      }
       const e = parseDT(it.end).getTime();
       cursor = Math.max(cursor, e);
       continue;
     }
 
     const dur = parseDT(it.end) - parseDT(it.start);
-    let s = Math.max(parseDT(it.start).getTime(), cursor);
+    const jeonbiDuringWork = it.type === 'jeonbi' && !!it.allowDuringWork;
+    let s = jeonbiDuringWork
+      ? parseDT(it.start).getTime()
+      : Math.max(parseDT(it.start).getTime(), cursor);
+
     if (it.type === 'ship') {
       const ac = getArrivalConstraint(it);
       if (ac) s = Math.max(s, ac.getTime());
     }
-    if (frozenMerged.length) {
+    if (jeonbiDuringWork) {
+      const blocking = [...frozenBlockingForJeonbiDuring, ...placedBlockingForJeonbiDuring];
+      const mergedBlocking = _mergeIntervalsMs(blocking.map(v => [v.start, v.end]));
+      s = _advancePastIntervalsMs(s, dur, mergedBlocking);
+    } else if (frozenMerged.length) {
       for (let g = 0; g < 200; g++) {
         const bumped = _advancePastFrozenMs(s, dur, frozenMerged);
         if (bumped === s) break;
@@ -1793,9 +1934,20 @@ function resolveBerthNonOverlap(opts = {}) {
         }
       }
     }
+    let finalDur = dur;
+    if (it.type === 'ship') {
+      const baseDur = Number(it.baseDurMs) > 0 ? Number(it.baseDurMs) : dur;
+      it.baseDurMs = baseDur;
+      const extendedEndMs = calcExtendedEndByDuringJeonbi(s, baseDur, duringJeonbiIntervals);
+      finalDur = extendedEndMs - s;
+    }
+
     it.start = toDTLocal(new Date(s));
-    it.end = toDTLocal(new Date(s + dur));
-    cursor = s + dur;
+    it.end = toDTLocal(new Date(s + finalDur));
+    if (it.type !== 'ship') {
+      placedBlockingForJeonbiDuring.push({ start: s, end: s + finalDur });
+    }
+    if (!jeonbiDuringWork) cursor = s + finalDur;
   }
 }
 
@@ -1897,6 +2049,7 @@ function saveShip() {
     blDate:    document.getElementById('fBLDate').value           || null,
     customer:  customer || null,
   };
+  entry.baseDurMs = Math.max(SNAP_MS, parseDT(end).getTime() - parseDT(start).getTime());
   const isNew = !editId;
   pushUndo();
   if (editId) { items[items.findIndex(x => x.id === editId)] = entry; }
@@ -1983,23 +2136,27 @@ let jeonbiEditId = null;
 
 function openJeonbiModal() {
   jeonbiEditId = null;
-  document.getElementById('jMaintTitle').textContent = '정비 추가';
+  document.getElementById('jMaintTitle').textContent = '정비';
   document.getElementById('jDelBtn').style.display = 'none';
   document.getElementById('jLabel').value = '정비';
+  document.getElementById('jDetail').value = '';
   document.getElementById('jDays').value  = '1';
   document.getElementById('jStart').value = toDTLocal(getNowRounded());
+  document.getElementById('jDuringWork').checked = false;
   document.getElementById('jHint').textContent = '종료 시간 = 시작 + 입력한 시간';
   document.getElementById('jeonbiModal').classList.add('show');
 }
 function openJeonbiEditModal(id) {
   jeonbiEditId = id;
   const item = items.find(x => x.id === id);
-  document.getElementById('jMaintTitle').textContent = '정비 수정';
+  document.getElementById('jMaintTitle').textContent = '정비';
   document.getElementById('jDelBtn').style.display = 'block';
   document.getElementById('jLabel').value = item.label || '정비';
+  document.getElementById('jDetail').value = item.detail || '';
   document.getElementById('jStart').value = item.start;
   const days = ((parseDT(item.end) - parseDT(item.start)) / 86400000).toFixed(1);
   document.getElementById('jDays').value  = days;
+  document.getElementById('jDuringWork').checked = !!item.allowDuringWork;
   document.getElementById('jeonbiModal').classList.add('show');
 }
 function closeJeonbiModal() {
@@ -2010,9 +2167,11 @@ function saveJeonbi() {
   const start = document.getElementById('jStart').value;
   const days  = parseFloat(document.getElementById('jDays').value) || 1;
   const label = document.getElementById('jLabel').value.trim() || '정비';
+  const detail = document.getElementById('jDetail').value.trim();
+  const allowDuringWork = !!document.getElementById('jDuringWork').checked;
   if (!start) { alert('시작 시간을 입력하세요.'); return; }
   const end = toDTLocal(new Date(parseDT(start).getTime() + days * 86400000));
-  const entry = { id: jeonbiEditId || Date.now().toString(), type:'jeonbi', name: label, label, start, end };
+  const entry = { id: jeonbiEditId || Date.now().toString(), type:'jeonbi', name: label, label, detail, start, end, allowDuringWork };
   pushUndo();
   if (jeonbiEditId) { items[items.findIndex(x => x.id === jeonbiEditId)] = entry; }
   else              { items.push(entry); }
@@ -2333,6 +2492,7 @@ async function importFromExcel() {
       existing.customer = customer || existing.customer || null;
       existing.brand = cols[9]?.trim() || existing.brand || null;
       existing.color = getAutoColor(existing.cargoType, existing.customer) || existing.color;
+      existing.baseDurMs = Math.max(SNAP_MS, parseDT(existing.end).getTime() - parseDT(existing.start).getTime());
       updated++; return;
     }
     items.push({
@@ -2341,6 +2501,7 @@ async function importFromExcel() {
       bl: parseFloat(String(cols[5] || '').replace(/,/g, '')) || null,
       rate: parseFloat(String(cols[6] || '').replace(/,/g, '')) || null,
       blDate: cols[7]?.trim() || null, customer: customer || null, brand: cols[9]?.trim() || null,
+      baseDurMs: Math.max(SNAP_MS, parseDT(end).getTime() - parseDT(start).getTime()),
       color: getAutoColor(cargoType, customer) || colors[added % colors.length],
     });
     added++;
@@ -2469,6 +2630,7 @@ function scrollToToday() {
         id:'s1', type:'ship', name:'SM Diamond',
         start: toDTLocal(new Date(Y,M,D-1,8,0)),
         end:   toDTLocal(new Date(Y,M,D+2,16,0)),
+        baseDurMs: Math.max(SNAP_MS, new Date(Y,M,D+2,16,0).getTime() - new Date(Y,M,D-1,8,0).getTime()),
         cargoType:'석탄', origin:'호주', bl:63, rate:30,
         customer:'포스코', color:'#3b82f6',
       },
@@ -2481,6 +2643,7 @@ function scrollToToday() {
         id:'s2', type:'ship', name:'TIGER NORTH',
         start: toDTLocal(new Date(Y,M,D+3,6,0)),
         end:   toDTLocal(new Date(Y,M,D+5,14,0)),
+        baseDurMs: Math.max(SNAP_MS, new Date(Y,M,D+5,14,0).getTime() - new Date(Y,M,D+3,6,0).getTime()),
         cargoType:'니켈', origin:'Poya', bl:55, rate:20,
         customer:'SNNC', color:'#fb923c',
       },
@@ -2488,6 +2651,7 @@ function scrollToToday() {
         id:'s3', type:'ship', name:'AC VICTORY',
         start: toDTLocal(new Date(Y,M,D-10,10,0)),
         end:   toDTLocal(new Date(Y,M,D-8,6,0)),
+        baseDurMs: Math.max(SNAP_MS, new Date(Y,M,D-8,6,0).getTime() - new Date(Y,M,D-10,10,0).getTime()),
         cargoType:'석탄', origin:'인니', bl:70, rate:30,
         customer:'한화에너지', color:'#9ca3af',
       },
@@ -2503,6 +2667,18 @@ function scrollToToday() {
     }
   });
   if (migrated) save();
+
+  // 과거 데이터 호환: 선박 기본 작업시간(정비 가산 전)을 없으면 현재 구간으로 초기화
+  let shipDurMigrated = false;
+  items.forEach(i => {
+    if (i.type !== 'ship') return;
+    if (Number(i.baseDurMs) > 0) return;
+    const s = parseDT(i.start), e = parseDT(i.end);
+    if (!s || !e || e <= s) return;
+    i.baseDurMs = Math.max(SNAP_MS, e.getTime() - s.getTime());
+    shipDurMigrated = true;
+  });
+  if (shipDurMigrated) save();
 
   const beforeResolve = JSON.stringify(items);
   resolveBerthNonOverlap();

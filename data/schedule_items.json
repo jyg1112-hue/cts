@@ -1,0 +1,64 @@
+[
+  {
+    "id": "s1",
+    "type": "ship",
+    "name": "SM Diamond",
+    "start": "2026-05-01T00:00",
+    "end": "2026-05-03T02:24",
+    "cargoType": "석탄",
+    "color": "#3b82f6",
+    "origin": "호주",
+    "brand": null,
+    "bl": 63000,
+    "rate": 30,
+    "blDate": null,
+    "customer": "포스코",
+    "baseDurMs": 181440000
+  },
+  {
+    "id": "m1",
+    "type": "maint",
+    "name": "장비청소",
+    "start": "2026-05-13T20:00",
+    "end": "2026-05-14T04:00"
+  },
+  {
+    "id": "s2",
+    "type": "ship",
+    "name": "TIGER NORTH",
+    "start": "2026-05-03T18:30",
+    "end": "2026-05-08T14:00",
+    "cargoType": "니켈",
+    "color": "#fb923c",
+    "origin": "Poya",
+    "brand": null,
+    "bl": 70000,
+    "rate": 20,
+    "blDate": null,
+    "customer": "SNNC",
+    "baseDurMs": 266400000
+  },
+  {
+    "id": "s3",
+    "type": "ship",
+    "name": "AC VICTORY",
+    "start": "2026-04-25T10:00",
+    "end": "2026-04-27T06:00",
+    "cargoType": "석탄",
+    "origin": "인니",
+    "bl": 70,
+    "rate": 30,
+    "customer": "한화에너지",
+    "color": "#9ca3af",
+    "baseDurMs": 158400000
+  },
+  {
+    "id": "1777969433223",
+    "type": "jeonbi",
+    "name": "정비",
+    "label": "정비",
+    "start": "2026-05-04T07:00",
+    "end": "2026-05-06T00:30",
+    "allowDuringWork": true
+  }
+]

@@ -174,9 +174,25 @@ body {
 .cargo-block.selected { outline: 3px solid #fbbf24; outline-offset: 1px; z-index: 5; }
 .cargo-block.cont-left  { border-left: 3px dashed rgba(255,255,255,0.5); border-radius: 0 6px 6px 0; }
 .cargo-block.cont-right { border-radius: 6px 0 0 6px; padding-right: 8px; }
-.cb-name { font-size: 14px; font-weight: 400; white-space: normal; overflow: hidden; line-height: 1.3; }
-.cb-name-strong { font-weight: 700; }
-.cb-sub  { font-size: 12px; opacity: 0.85; white-space: normal; overflow: hidden; line-height: 1.3; }
+.cb-body {
+  flex: 1 1 auto; width: 100%; min-width: 0; align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+}
+.cb-stack {
+  width: 100%; min-width: 0;
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: 2px; line-height: 1.15;
+}
+.cb-line--name {
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.cb-line--qty {
+  font-size: 11px; font-weight: 600; opacity: 0.92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
 .resize-handle {
   position: absolute; right: 0; top: 0; bottom: 0; width: 10px;
   cursor: ew-resize; z-index: 5;
@@ -497,7 +513,8 @@ body {
     </div>
     <p class="import-hint" style="margin-bottom:8px;">
       엑셀에서 <b>칼럼 제목 제외</b> 후 행 데이터를 그대로 붙여넣어 주세요.<br>
-      반영 컬럼: <b>선명</b>, <b>접안일</b>, <b>수량(톤)</b> (화물은 색상 참고용으로만 사용)
+      반영 컬럼: <b>선명</b>, <b>접안일</b>, <b>화물(브랜드)</b>, <b>수량(톤)</b> — 화물은 색상·일정 블록 표기에 사용됩니다.<br>
+      <span style="color:#6b7280;font-size:11px;">선명·접안일이 세로 병합되어 아래 줄에 비어 있으면, 위 줄 값을 자동으로 이어 씁니다. 한 모선에 브랜드가 여러 줄이면 줄마다 별도 일정으로 들어갑니다.</span>
     </p>
     <div class="excel-grid-wrap">
       <table id="excelImportGridTable" style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;"></table>
@@ -937,7 +954,7 @@ function render() {
         el.style.color = item.cat === 'Silo' ? '#000000' : textColor(blockColor);
         el.innerHTML = `
           ${fromPrev ? '<div style="font-size:10px;flex-shrink:0">◀</div>' : ''}
-          <div class="cb-name">${getDisplayNameMarkup(item)}</div>
+          <div class="cb-body">${getBlockContentMarkup(item)}</div>
           ${!toNext ? `<div class="resize-handle" data-rh="${item.id}"></div>` : ''}`;
         el.style.left  = lx + 'px';
         el.style.width = lw + 'px';
@@ -1360,23 +1377,40 @@ function escHtml(v) {
     .replace(/'/g, '&#39;');
 }
 
-function getDisplayNameMarkup(item) {
-  const text = getDisplayName(item);
+/** 선명(또는 Silo 라벨)과 화물량 라인을 분리 — 타임라인 블록 2줄 고정용 */
+function getBlockTitleLines(item) {
+  const raw = String(item?.name || '').trim();
+  if (!raw) return { line1: '', line2: '' };
+
   if (item?.cat === 'Silo') {
-    const m = text.match(/^(Silo\s*[^\s,·]+)(\s*[·,]\s*.+)?$/i);
+    const m = raw.match(/^Silo\s*([^\s,·]+)\s*[·,]?\s*(.*)$/i);
     if (m) {
-      const head = escHtml((m[1] || '').trim());
-      const tail = escHtml(m[2] || '');
-      return tail ? `<span class="cb-name-strong">${head}</span>${tail}` : `<span class="cb-name-strong">${head}</span>`;
+      const siloNo = (m[1] || '').trim();
+      const qtyRaw = (m[2] || '').trim();
+      return {
+        line1: siloNo ? `Silo ${siloNo}` : raw,
+        line2: qtyRaw ? formatQtyLabel(qtyRaw) : ''
+      };
     }
-    return escHtml(text);
+    return { line1: raw, line2: '' };
   }
 
-  const m = text.match(/^(.*?)(\s+[\d.,]+\s*천톤)$/i);
-  if (!m) return escHtml(text);
-  const ship = escHtml((m[1] || '').trim());
-  const qty = escHtml(m[2] || '');
-  return `<span class="cb-name-strong">${ship}</span>${qty}`;
+  const m = raw.match(/^(.*?)[,\s]+([\d.,]+)\s*(천톤|톤)$/i);
+  if (!m) return { line1: raw, line2: '' };
+  const title = (m[1] || '').trim();
+  const ton = parseQtyToTon(`${m[2]}${m[3]}`);
+  if (!title || ton <= 0) return { line1: raw, line2: '' };
+  return {
+    line1: title,
+    line2: formatQtyLabel(`${m[2]}${m[3]}`)
+  };
+}
+
+function getBlockContentMarkup(item) {
+  const { line1, line2 } = getBlockTitleLines(item);
+  const l1 = escHtml(line1);
+  const l2 = line2 ? escHtml(line2) : '&nbsp;';
+  return `<div class="cb-stack"><div class="cb-line cb-line--name">${l1}</div><div class="cb-line cb-line--qty">${l2}</div></div>`;
 }
 
 function updateImportHint() {
@@ -1452,6 +1486,82 @@ function closeExcelImportModal() {
 const BANCHU_EXCEL_HEADERS = ['선명', '접안일', '화물', '수량(톤)'];
 let banchuExcelGridRows = [];
 
+/** 접안일 병합으로 생긴 연속 빈 탭·열 밀림을 보정해 항상 [선명, 접안일, 화물, 수량] 4칸으로 만든다. */
+function cellLooksLikeBerthingDateForPaste(text) {
+  return !!parseEtaToDateTime(text);
+}
+function cellLooksLikeQtyTonForPaste(s) {
+  const t = String(s || '').trim();
+  if (!t || cellLooksLikeBerthingDateForPaste(t)) return false;
+  if (parseQtyToTon(t) > 0) return true;
+  return /^[\d,.\s천톤]+$/i.test(t.replace(/\s+/g, ' '));
+}
+
+function normalizeExcelPasteRow(rawCells) {
+  let parts = (rawCells || []).map(s => String(s ?? '').trim());
+  while (parts.length && parts[parts.length - 1] === '') parts.pop();
+  while (parts.length && parts[0] === '') parts.shift();
+
+  const squeezed = [];
+  let i = 0;
+  while (i < parts.length) {
+    if (parts[i] === '') {
+      let run = 0;
+      while (i + run < parts.length && parts[i + run] === '') run++;
+      if (run >= 2) {
+        i += run;
+        continue;
+      }
+      squeezed.push('');
+      i++;
+    } else {
+      squeezed.push(parts[i]);
+      i++;
+    }
+  }
+
+  const out = ['', '', '', ''];
+  if (squeezed.length <= 4) {
+    for (let k = 0; k < squeezed.length && k < 4; k++) out[k] = squeezed[k];
+    return out;
+  }
+
+  const ne = squeezed.filter(Boolean);
+  if (ne.length === 4) {
+    return [ne[0], ne[1], ne[2], ne[3]];
+  }
+
+  out[0] = squeezed[0] || '';
+
+  let dateIdx = -1;
+  for (let j = 1; j < squeezed.length; j++) {
+    if (cellLooksLikeBerthingDateForPaste(squeezed[j])) {
+      dateIdx = j;
+      break;
+    }
+  }
+  if (dateIdx < 0) dateIdx = Math.min(1, squeezed.length - 1);
+  out[1] = squeezed[dateIdx] || '';
+
+  let qtyIdx = -1;
+  for (let j = squeezed.length - 1; j >= 0; j--) {
+    if (cellLooksLikeQtyTonForPaste(squeezed[j])) {
+      qtyIdx = j;
+      break;
+    }
+  }
+  if (qtyIdx < 0) qtyIdx = squeezed.length - 1;
+  out[3] = squeezed[qtyIdx] || '';
+
+  const cargoBits = [];
+  for (let j = dateIdx + 1; j < qtyIdx; j++) {
+    if (squeezed[j]) cargoBits.push(squeezed[j]);
+  }
+  out[2] = cargoBits.join(' ').trim();
+
+  return out;
+}
+
 function parseBanchuExcelRows(text) {
   const rawLines = String(text || '').replace(/\r/g, '').split('\n').filter(l => l.trim());
   const tabScore = rawLines.slice(0, 5).reduce((acc, line) => acc + (line.includes('\t') ? 1 : 0), 0);
@@ -1509,17 +1619,19 @@ function bindExcelImportGridEvents() {
     td.addEventListener('paste', e => {
       e.preventDefault();
       const clip = e.clipboardData?.getData('text/plain') || '';
-      const rows = parseBanchuExcelRows(clip);
+      const rows = parseBanchuExcelRows(clip).map(r => normalizeExcelPasteRow(r));
       if (!rows.length) return;
       const sr = Number(td.dataset.r || 0);
       const sc = Number(td.dataset.c || 0);
-      ensureExcelImportGridSize(sr + rows.length, sc + Math.max(...rows.map(r => r.length)));
-      rows.forEach((row, rOff) => row.forEach((val, cOff) => {
-        const rr = sr + rOff;
-        const cc = sc + cOff;
-        if (cc >= BANCHU_EXCEL_HEADERS.length) return;
-        banchuExcelGridRows[rr][cc] = String(val || '').trim();
-      }));
+      ensureExcelImportGridSize(sr + rows.length, sc + BANCHU_EXCEL_HEADERS.length);
+      rows.forEach((norm, rOff) => {
+        for (let cOff = 0; cOff < BANCHU_EXCEL_HEADERS.length; cOff++) {
+          const rr = sr + rOff;
+          const cc = sc + cOff;
+          if (cc >= BANCHU_EXCEL_HEADERS.length) break;
+          banchuExcelGridRows[rr][cc] = norm[cOff] || '';
+        }
+      });
       renderExcelImportGrid();
     });
   });
@@ -1530,47 +1642,34 @@ function getRowsFromExcelImportGrid() {
     .filter(r => r.some(v => v));
 }
 
-function isLikelyDateText(text) {
-  return !!parseEtaToDateTime(text);
-}
-
+/**
+ * 엑셀 세로 병합 복사 시 2번째 행부터 선명·접안일 칸이 비는 경우가 많음.
+ * 이때 이전 행의 선명·접안일을 내려 채우고(fill-down), 화물·수량은 행마다 별도 일정으로 유지
+ * (한 모선에 LXI / KCH 등 브랜드 여러 줄).
+ *
+ * 새 선박 행인데 접안일 칸만 비어 있으면(드문 병합) 접안일을 이전 선박에서 가져오지 않음 → 빈 값으로 두고 가져오기 단계에서 건너뜀.
+ */
 function normalizeExcelImportLogicalRows(rows) {
+  let lastShip = '';
+  let lastEta = '';
   const normalized = [];
-  let current = null;
-
-  const flushCurrent = () => {
-    if (current && current.some(v => v)) normalized.push(current);
-    current = null;
-  };
 
   rows.forEach(raw => {
     const row = Array.from({ length: BANCHU_EXCEL_HEADERS.length }, (_, idx) => String(raw[idx] || '').trim());
     if (!row.some(v => v)) return;
 
-    const hasShip = !!row[0];
-    if (hasShip) {
-      flushCurrent();
-      current = row;
-      return;
-    }
+    if (row[1]) lastEta = row[1];
 
-    if (!current) {
-      current = row;
-      return;
-    }
+    const ship = row[0] || lastShip;
+    const eta = row[1] || (!row[0] ? lastEta : '');
 
-    // 병합 셀 복사 시 같은 건이 2줄로 나뉘는 경우를 한 건으로 복원
-    for (let c = 0; c < BANCHU_EXCEL_HEADERS.length; c++) {
-      if (!current[c] && row[c]) current[c] = row[c];
-    }
+    if (row[0]) lastShip = row[0];
 
-    // 열 밀림 보정: date/cargo/qty 값이 왼쪽으로 밀려 들어온 경우
-    if (!current[1] && isLikelyDateText(row[0])) current[1] = row[0];
-    if (!current[2] && row[1] && !isLikelyDateText(row[1])) current[2] = row[1];
-    if (!current[3] && row[2]) current[3] = row[2];
+    if (!ship) return;
+
+    normalized.push([ship, eta, row[2], row[3]]);
   });
 
-  flushCurrent();
   return normalized;
 }
 
@@ -1832,7 +1931,8 @@ function importFromExcelPaste() {
   rows.forEach((cols, idx) => {
     const ship = cols[0] || '';
     const etaRaw = cols[1] || '';
-    const cargoVal = (cols[2] || fallbackCargo || '').trim() || fallbackCargo;
+    const rawCargo = (cols[2] || '').trim();
+    const cargoVal = rawCargo || fallbackCargo;
     const qtyRaw = cols[3] || '';
     if (!ship) return;
 
@@ -1843,7 +1943,8 @@ function importFromExcelPaste() {
     const durationHours = qtyTon > 0 ? (qtyTon / tonPerHour) : 24;
     const endDt = new Date(startDt.getTime() + durationHours * 3600000);
     const qtyLabel = formatQtyLabel(qtyRaw);
-    const name = qtyLabel ? `${ship} ${qtyLabel}` : ship;
+    const nameStem = rawCargo ? `${ship}·${rawCargo}` : ship;
+    const name = qtyLabel ? `${nameStem} ${qtyLabel}` : nameStem;
 
     newItems.push({
       id: `imp_xl_${Date.now()}_${idx}`,
