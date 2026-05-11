@@ -3,8 +3,8 @@
     "id": "s1",
     "type": "ship",
     "name": "SM Diamond",
-    "start": "2026-05-01T00:00",
-    "end": "2026-05-03T02:24",
+    "start": "2026-04-27T08:00",
+    "end": "2026-04-29T10:24",
     "cargoType": "석탄",
     "color": "#3b82f6",
     "origin": "호주",
@@ -16,18 +16,11 @@
     "baseDurMs": 181440000
   },
   {
-    "id": "m1",
-    "type": "maint",
-    "name": "장비청소",
-    "start": "2026-05-13T20:00",
-    "end": "2026-05-14T04:00"
-  },
-  {
     "id": "s2",
     "type": "ship",
     "name": "TIGER NORTH",
-    "start": "2026-05-03T18:30",
-    "end": "2026-05-08T14:00",
+    "start": "2026-04-29T12:24",
+    "end": "2026-05-02T14:24",
     "cargoType": "니켈",
     "color": "#fb923c",
     "origin": "Poya",
@@ -60,5 +53,61 @@
     "start": "2026-05-04T07:00",
     "end": "2026-05-06T00:30",
     "allowDuringWork": true
+  },
+  {
+    "id": "1778494519068",
+    "type": "ship",
+    "name": "SM Diamond",
+    "start": "2026-05-16T09:30",
+    "end": "2026-05-21T18:30",
+    "cargoType": "니켈",
+    "color": "#fb923c",
+    "origin": "Nakety",
+    "brand": null,
+    "bl": 55000,
+    "rate": 20,
+    "blDate": "2026-05-11",
+    "customer": "SNNC",
+    "baseDurMs": 464400000
+  },
+  {
+    "id": "1778494561340",
+    "type": "ship",
+    "name": "MING XING HAI",
+    "start": "2026-05-22T02:30",
+    "end": "2026-05-26T23:30",
+    "cargoType": "석탄",
+    "color": "#3b82f6",
+    "origin": "인니",
+    "brand": "BCH",
+    "bl": 50000,
+    "rate": 30,
+    "blDate": "2026-05-11",
+    "customer": "포스코",
+    "baseDurMs": 421200000
+  },
+  {
+    "id": "1778494561341_m2",
+    "type": "maint",
+    "name": "장비청소",
+    "start": "2026-05-08T14:00",
+    "end": "2026-05-08T22:00"
+  },
+  {
+    "id": "1778494688806",
+    "type": "jeonbi",
+    "name": "정비",
+    "label": "정비",
+    "detail": "",
+    "start": "2026-05-11T19:00",
+    "end": "2026-05-12T19:00",
+    "allowDuringWork": false
+  },
+  {
+    "id": "1778495897232_mfix_4_1778494561340",
+    "type": "maint",
+    "name": "장비청소",
+    "start": "2026-05-21T18:30",
+    "end": "2026-05-22T02:30"
   }
 ]

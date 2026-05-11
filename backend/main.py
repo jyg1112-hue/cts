@@ -593,7 +593,6 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
             },
         }
 
-    vessel_names = {r["vessel_name"] for r in rows}
     total_volume = sum(r["volume_ton"] for r in rows)
     avg_rate = sum(r["unloading_rate"] for r in rows) / len(rows)
 
@@ -624,11 +623,18 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
         brand = r["brand"]
         if brand not in brand_map:
-            brand_map[brand] = {"brand": brand, "volume_ton": 0.0, "rates": [], "vessels": set(), "issue_count": 0, "issues": {}}
+            brand_map[brand] = {
+                "brand": brand,
+                "volume_ton": 0.0,
+                "rates": [],
+                "vessel_count": 0,
+                "issue_count": 0,
+                "issues": {},
+            }
         brand_row = brand_map[brand]
         brand_row["volume_ton"] += r["volume_ton"]
         brand_row["rates"].append(r["unloading_rate"])
-        brand_row["vessels"].add(r["vessel_name"])
+        brand_row["vessel_count"] += 1
         brand_row["issue_count"] += len(tags)
         for tag in tags:
             brand_row["issues"][tag] = brand_row["issues"].get(tag, 0) + 1
@@ -676,7 +682,7 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "brand": b["brand"],
                 "volume_ton": round(b["volume_ton"], 2),
                 "avg_unloading_rate": round(sum(b["rates"]) / len(b["rates"]), 2) if b["rates"] else 0,
-                "vessel_count": len(b["vessels"]),
+                "vessel_count": b["vessel_count"],
                 "issue_count": b["issue_count"],
                 "top_issue": top_issue,
             }
@@ -698,7 +704,7 @@ def _aggregate_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "kpis": {
             "total_volume_ton": round(total_volume, 2),
-            "total_vessels": len(vessel_names),
+            "total_vessels": len(rows),
             "avg_unloading_rate": round(avg_rate, 2),
             "issue_count": sum(issue_counter.values()),
         },
@@ -810,9 +816,10 @@ def _chat_completion_with_openai(
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": user_prompt})
 
+    model = (os.environ.get("OPENAI_UNLOADING_CHAT_MODEL") or "").strip() or "gpt-4o-mini"
     body = json.dumps(
         {
-            "model": "gpt-5-mini",
+            "model": model,
             "messages": messages,
             "response_format": {"type": "json_object"},
             "max_completion_tokens": 2000,

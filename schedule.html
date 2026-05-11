@@ -95,6 +95,12 @@ body {
 .btn-green  { background: #22c55e; color: white; }
 
 /* ── STATS BAR ── */
+.schedule-main-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .stats-bar {
   background: white; border-bottom: 1px solid #e5e7eb;
   padding: 6px 16px; flex-shrink: 0;
@@ -131,12 +137,13 @@ body {
   width: max-content;
   min-width: 100%;
 }
-.tl-row-group { display: flex; flex-shrink: 0; }
+.tl-row-group { display: flex; flex-shrink: 0; align-self: flex-start; }
 .tl-row-content {
   display: flex; flex-direction: column;
   border-radius: 0 8px 8px 0;
   box-shadow: 0 1px 6px rgba(0,0,0,0.12);
   overflow: hidden;
+  flex-shrink: 0;
 }
 .tl-sidebar {
   width: 14px;
@@ -394,17 +401,104 @@ body {
   }
 }
 
+/* 인쇄 미리보기용(화면에서는 숨김) */
+.print-only-banner {
+  display: none;
+}
+
 /* ── PRINT / PDF ── */
 @media print {
-  body { overflow: visible; height: auto; background: white; }
-  .app-header { position: static; box-shadow: none; }
-  .header-controls { display: none; }
-  .timeline-outer { overflow: visible; padding: 0; gap: 4px; }
-  .tl-row-content { box-shadow: none; }
-  .tl-berth-row { overflow: visible; }
-  .del-hint, .tip { display: none !important; }
-  .ship-block, .maint-block { box-shadow: none; }
-  .base-cal-pop { display: none !important; }
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* body 직계 자식은 스케줄 래퍼만 남김 → IDE·브라우저 확장 우측 바 등 같이 인쇄되지 않게 */
+  body > *:not(.schedule-main-column) {
+    display: none !important;
+  }
+  body > .schedule-main-column {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    width: max-content !important;
+    max-width: none !important;
+  }
+  .print-only-banner {
+    display: block !important;
+    flex-shrink: 0;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border: 1px solid #1a3a5c;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a3a5c;
+    background: #f1f5f9;
+  }
+  .stats-bar {
+    flex-shrink: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .stats-month-selector select {
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  .timeline-outer {
+    flex: none !important;
+    overflow: visible !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    width: max-content !important;
+    max-width: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .tl-zoom {
+    transform: none !important;
+    padding: 4px 0 !important;
+    width: max-content !important;
+    min-width: 0 !important;
+  }
+  .tl-row-group {
+    flex-shrink: 0 !important;
+    width: max-content !important;
+    max-width: none !important;
+    align-self: flex-start !important;
+  }
+  .tl-row-content {
+    overflow: visible !important;
+    flex-shrink: 0 !important;
+    box-shadow: none !important;
+    max-width: none !important;
+  }
+  .tl-sidebar {
+    flex-shrink: 0 !important;
+    box-shadow: none !important;
+  }
+  .tl-date-row,
+  .tl-hour-row {
+    overflow: visible !important;
+    max-width: none !important;
+  }
+  .tl-berth-row { overflow: visible !important; }
+  .ship-block, .maint-block { box-shadow: none !important; }
+  /* 12주(6줄)만 출력 — 7번째 행 그룹부터 숨김 */
+  .tl-zoom > .tl-row-group:nth-child(n + 7) { display: none !important; }
 }
 
 /* ── TOOLTIP ── */
@@ -476,18 +570,20 @@ body {
   </div>
 </div>
 
-<!-- STATS BAR -->
-<div class="stats-bar">
-  <div class="stats-month-selector">
-    <label>통계 기준</label>
-    <select id="statYear" onchange="renderStats()"></select>
-    <select id="statMonth" onchange="renderStats()"></select>
+<div class="schedule-main-column" id="scheduleMainColumn">
+  <div class="print-only-banner" id="printOnlyBanner" aria-hidden="true"></div>
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stats-month-selector">
+      <label>통계 기준</label>
+      <select id="statYear" onchange="renderStats()"></select>
+      <select id="statMonth" onchange="renderStats()"></select>
+    </div>
+    <div class="stats-items" id="statsItems"></div>
   </div>
-  <div class="stats-items" id="statsItems"></div>
+  <!-- TIMELINE (이미지 저장 시 캡처하는 영역과 동일) -->
+  <div class="timeline-outer" id="tlOuter"></div>
 </div>
-
-<!-- TIMELINE -->
-<div class="timeline-outer" id="tlOuter"></div>
 
 <!-- DELETE HINT -->
 <div class="del-hint" id="delHint">클릭: 선택 · Ctrl/Cmd+클릭: 다중 선택 · Delete: 삭제 · Ctrl/Cmd+Z: 되돌리기</div>
@@ -703,19 +799,38 @@ const DAYS_PER_ROW = 14;
 const SNAP_MS      = 30 * 60000;
 const KEY     = 'berth7_v6';
 
-// 대한민국 공휴일 (주말 제외 별도 표기)
+// 대한민국 관공서 공휴일 + 대체공휴일(설·추석·어린이날·국경일·부처님·성탄 등 법령 기준)
+// 연도별 고시가 바뀌면 갱신하세요. (주말과 동일하게 달력 헤더·기준일 달력에 빨간색)
 const HOLIDAYS = new Set([
+  // 2024
+  '2024-01-01', '2024-02-09', '2024-02-10', '2024-02-11', '2024-02-12',
+  '2024-03-01', '2024-05-05', '2024-05-06', '2024-05-15', '2024-06-06', '2024-08-15',
+  '2024-09-16', '2024-09-17', '2024-09-18', '2024-10-01', '2024-10-03', '2024-10-09', '2024-12-25',
   // 2025
-  '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
-  '2025-03-01','2025-05-05','2025-06-06','2025-08-15',
-  '2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-08','2025-10-09',
+  '2025-01-01', '2025-01-28', '2025-01-29', '2025-01-30',
+  '2025-03-01', '2025-03-03', '2025-05-05', '2025-05-06', '2025-06-03', '2025-06-06', '2025-08-15',
+  '2025-10-03', '2025-10-05', '2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09',
   '2025-12-25',
-  // 2026
-  '2026-01-01','2026-02-16','2026-02-17','2026-02-18',
-  '2026-03-01','2026-03-02','2026-05-05','2026-05-24','2026-05-25',
-  '2026-06-06','2026-08-15',
-  '2026-09-24','2026-09-25','2026-09-26',
-  '2026-10-03','2026-10-09','2026-12-25',
+  // 2026 (제헌절 공휴일 부활)
+  '2026-01-01', '2026-02-16', '2026-02-17', '2026-02-18',
+  '2026-03-01', '2026-03-02', '2026-05-05', '2026-05-24', '2026-05-25',
+  '2026-06-06', '2026-06-08', '2026-07-17', '2026-08-15', '2026-08-17',
+  '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-28',
+  '2026-10-03', '2026-10-05', '2026-10-09', '2026-12-25',
+  // 2027
+  '2027-01-01', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09',
+  '2027-03-01', '2027-05-05', '2027-05-13', '2027-06-06', '2027-06-07', '2027-07-17',
+  '2027-08-15', '2027-08-16', '2027-09-14', '2027-09-15', '2027-09-16',
+  '2027-10-03', '2027-10-04', '2027-10-09', '2027-10-11', '2027-12-25', '2027-12-27',
+  // 2028
+  '2028-01-01', '2028-01-03', '2028-01-26', '2028-01-27', '2028-01-28',
+  '2028-03-01', '2028-05-05', '2028-05-08', '2028-06-06', '2028-07-17', '2028-08-15',
+  '2028-10-02', '2028-10-03', '2028-10-04', '2028-10-09', '2028-12-25',
+  // 2029
+  '2029-01-01', '2029-02-12', '2029-02-13', '2029-02-14',
+  '2029-03-01', '2029-05-05', '2029-05-07', '2029-05-20', '2029-06-06', '2029-07-17', '2029-08-15',
+  '2029-09-21', '2029-09-22', '2029-09-23', '2029-09-24',
+  '2029-10-03', '2029-10-09', '2029-12-25',
 ]);
 
 let items      = [];
@@ -1118,8 +1233,38 @@ function scrollTimelineRowForDateIntoView(dt) {
 }
 
 // ══════════════════════════════════════════
-//  STATS — 월 누계
+//  STATS — nn: 월초~기준일 말 MTD, NN: 해당 월 전체
 // ══════════════════════════════════════════
+/** [windowStart, windowEndExclusive) 안 선박 점유 구간 합집합 길이(ms) */
+function occupancyUnionMsInWindow(windowStart, windowEndExclusive, duringWorkJeonbiIntervals) {
+  const ws = windowStart.getTime();
+  const we = windowEndExclusive.getTime();
+  if (we <= ws) return 0;
+  const overlapIntervals = items
+    .filter(i => {
+      if (i.type !== 'ship') return false;
+      const s = parseDT(i.start);
+      const eMs = getEffectiveShipEndMs(i, duringWorkJeonbiIntervals);
+      return s && eMs && eMs > ws && s.getTime() < we;
+    })
+    .map(i => [
+      Math.max(parseDT(i.start).getTime(), ws),
+      Math.min(getEffectiveShipEndMs(i, duringWorkJeonbiIntervals), we),
+    ])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0]);
+
+  let occupancyMs = 0;
+  let uStart = null, uEnd = null;
+  for (const [s, e] of overlapIntervals) {
+    if (uStart === null) { uStart = s; uEnd = e; }
+    else if (s <= uEnd)  { uEnd = Math.max(uEnd, e); }
+    else                 { occupancyMs += uEnd - uStart; uStart = s; uEnd = e; }
+  }
+  if (uStart !== null) occupancyMs += uEnd - uStart;
+  return occupancyMs;
+}
+
 function populateStatMonths() {
   const yearSel = document.getElementById('statYear');
   const monthSel = document.getElementById('statMonth');
@@ -1150,14 +1295,25 @@ function renderStats(shouldScrollTimeline = true) {
 
   const monthStart = new Date(yr, mo - 1, 1, 0, 0, 0, 0);
   const monthEnd   = new Date(yr, mo,     1, 0, 0, 0, 0); // exclusive
-  const now        = new Date();
 
-  // 기준 시점: 과거 월이면 월말, 현재 월이면 지금, 미래 월이면 월말(예상 점유율)
-  const periodEnd  = now >= monthEnd ? monthEnd : (now > monthStart ? now : monthEnd);
-  const elapsedHrs = (periodEnd - monthStart) / 3600000;
+  const duringWorkJeonbiIntervals = getDuringWorkJeonbiIntervalsMs();
+
+  const base = getViewStart();
+  const endOfBaseDay = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1, 0, 0, 0, 0);
+  const nnWindowEnd = new Date(Math.min(endOfBaseDay.getTime(), monthEnd.getTime()));
+
+  const nnMs = occupancyUnionMsInWindow(monthStart, nnWindowEnd, duringWorkJeonbiIntervals);
+  const NNMs = occupancyUnionMsInWindow(monthStart, monthEnd, duringWorkJeonbiIntervals);
+
+  const nnDenomHrs = Math.max(0, (nnWindowEnd.getTime() - monthStart.getTime()) / 3600000);
+  const NNDenomHrs = (monthEnd.getTime() - monthStart.getTime()) / 3600000;
+
+  const nnHrs = nnMs / 3600000;
+  const NNhrs = NNMs / 3600000;
+  const nnRate = nnDenomHrs > 0 ? (nnHrs / nnDenomHrs * 100).toFixed(1) : '0.0';
+  const NNRate = NNDenomHrs > 0 ? (NNhrs / NNDenomHrs * 100).toFixed(1) : '0.0';
 
   // 척수·반입량: 출항(완료) 시각이 해당 월인 선박만 (예: 4/30~5/1 작업은 5월 완료 → 4월 척수 제외)
-  const duringWorkJeonbiIntervals = getDuringWorkJeonbiIntervalsMs();
   const completedInMonth = items.filter(i => {
     if (i.type !== 'ship') return false;
     const s = parseDT(i.start);
@@ -1172,33 +1328,6 @@ function renderStats(shouldScrollTimeline = true) {
   const nickelBL  = completedInMonth.filter(i => i.cargoType === '니켈').reduce((a, s) => a + (parseFloat(s.bl) || 0), 0);
   const fmtT = n => Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
 
-  // 안벽 점유율: 해당 월과 겹치는 선박 구간의 합집합(union)으로 계산 (중복 방지)
-  const overlapIntervals = items
-    .filter(i => {
-      if (i.type !== 'ship') return false;
-      const s = parseDT(i.start);
-      const eMs = getEffectiveShipEndMs(i, duringWorkJeonbiIntervals);
-      return s && eMs && eMs > monthStart.getTime() && s.getTime() < periodEnd.getTime();
-    })
-    .map(i => [
-      Math.max(parseDT(i.start).getTime(), monthStart.getTime()),
-      Math.min(getEffectiveShipEndMs(i, duringWorkJeonbiIntervals), periodEnd.getTime()),
-    ])
-    .filter(([s, e]) => e > s)
-    .sort((a, b) => a[0] - b[0]);
-
-  let occupancyMs = 0;
-  let uStart = null, uEnd = null;
-  for (const [s, e] of overlapIntervals) {
-    if (uStart === null) { uStart = s; uEnd = e; }
-    else if (s <= uEnd)  { uEnd = Math.max(uEnd, e); }
-    else                 { occupancyMs += uEnd - uStart; uStart = s; uEnd = e; }
-  }
-  if (uStart !== null) occupancyMs += uEnd - uStart;
-
-  const occupancyHrs  = occupancyMs / 3600000;
-  const occupancyRate = elapsedHrs > 0 ? (occupancyHrs / elapsedHrs * 100).toFixed(1) : '0.0';
-
   document.getElementById('statsItems').innerHTML = `
     <div class="stat">
       선박 <strong>${completedInMonth.length}</strong>척
@@ -1211,8 +1340,8 @@ function renderStats(shouldScrollTimeline = true) {
     </div>
     <span class="stat-divider">/</span>
     <div class="stat">
-      총 점유 <strong>${occupancyHrs.toFixed(0)}</strong><span class="stat-sub">시간</span>
-      <span class="stat-sub">[안벽점유율: ${occupancyRate}%]</span>
+      총 점유 <strong>${nnHrs.toFixed(0)}/${NNhrs.toFixed(0)}</strong><span class="stat-sub">시간</span>
+      <span class="stat-sub">[안벽점유율: ${nnRate}%/${NNRate}%]</span>
     </div>
   `;
 
@@ -1673,55 +1802,6 @@ function autoCalcEnd() {
   updateColorPreview();
 }
 
-// 니켈 선박 저장 후 뒤에 장비청소 자동 추가 (이미 바로 뒤에 있으면 스킵)
-function autoAddMaintAfterNickel(shipEnd) {
-  const endDt     = parseDT(shipEnd);
-  const maintStart = endDt.getTime();
-  const maintEnd   = new Date(maintStart + 8 * 3600000);
-  // 바로 뒤 구간에 장비청소가 있거나, 시작이 니켈 종료와 거의 같으면 스킵
-  const already = items.some(i =>
-    i.type === 'maint' &&
-    String(i.name || '').trim() === '장비청소' &&
-    Math.abs(parseDT(i.start).getTime() - maintStart) < 30 * 60000
-  );
-  if (!already) {
-    items.push({
-      id: Date.now().toString() + '_m',
-      type: 'maint',
-      name: '장비청소',
-      start: toDTLocal(endDt),
-      end:   toDTLocal(maintEnd),
-    });
-  }
-}
-
-// 석탄 선박이 니켈 선박 뒤에 배치되면, 니켈 종료 직후 청소를 자동 추가
-function autoAddMaintBeforeCoal(coalStart) {
-  const coalStartDt = parseDT(coalStart);
-  if (!coalStartDt) return;
-
-  const prevNickel = items
-    .filter(i => i.type === 'ship' && i.cargoType === '니켈' && parseDT(i.end) && parseDT(i.end) <= coalStartDt)
-    .sort((a, b) => parseDT(b.end) - parseDT(a.end))[0];
-
-  if (!prevNickel) return;
-
-  const nickelEndDt = parseDT(prevNickel.end);
-  const maintStart = nickelEndDt.getTime();
-  if (hasNickelCoalGapCleaning(prevNickel.end, coalStart)) return;
-
-  const maintEnd = new Date(maintStart + 8 * 3600000);
-  if (maintEnd <= nickelEndDt) return;
-
-  items.push({
-    id: Date.now().toString() + '_m2',
-    type: 'maint',
-    name: '장비청소',
-    start: toDTLocal(nickelEndDt),
-    end: toDTLocal(maintEnd),
-  });
-}
-
 // 다양한 문자열 포맷(ISO, MM/DD HH:mm, "YYYY. MM. DD. 오전/오후 HH:mm")을 Date로 파싱
 function parseFlexibleDT(raw) {
   const base = parseDT(raw);
@@ -1745,7 +1825,8 @@ function parseFlexibleDT(raw) {
   return null;
 }
 
-// 니켈 종료 ~ 석탄 시작 사이에 장비청소가 이미 있으면 true (이동 후에도 중복 추가 방지)
+// 니켈 종료 ~ 석탄 시작 구간과 시간상 겹치거나, 니켈 종료 시각에 맞닿은 장비청소면 true (중복 자동 추가 방지)
+// (me > ne 만 쓰면 출항과 동시에 끝나는 청소를 놓쳐 니켈 일정 조정 시 청소가 하나 더 붙는 버그가 난다)
 function hasNickelCoalGapCleaning(nickelEndRaw, coalStartRaw) {
   const ne = parseFlexibleDT(nickelEndRaw) ?? parseDT(nickelEndRaw);
   const cs = parseFlexibleDT(coalStartRaw) ?? parseDT(coalStartRaw);
@@ -1757,12 +1838,119 @@ function hasNickelCoalGapCleaning(nickelEndRaw, coalStartRaw) {
     const ms = parseFlexibleDT(i.start) ?? parseDT(i.start);
     const me = parseFlexibleDT(i.end) ?? parseDT(i.end);
     if (!ms || !me) return false;
-    return ms < cs && me > ne;
+    return ms < cs && me >= ne;
   });
 }
 
-// 저장 시 전체 데이터 기준으로 니켈->석탄 전환 구간 청소 누락 보정
+// 니켈 종료~석탄 시작 구간에 장비청소가 둘 이상이면 1건만 남김 (니켈 직후에 가장 가까운 시작 시각 우선)
+function dedupeNickelCoalGapCleanings() {
+  const ships = items
+    .filter(i => i.type === 'ship' && parseFlexibleDT(i.start) && parseFlexibleDT(i.end))
+    .sort((a, b) => parseFlexibleDT(a.start) - parseFlexibleDT(b.start));
+
+  const toRemove = new Set();
+  ships.forEach((ship) => {
+    if (ship.cargoType !== '석탄') return;
+    const coalStartDt = parseFlexibleDT(ship.start);
+    if (!coalStartDt) return;
+    const prevNickel = ships
+      .filter(s => s.cargoType === '니켈' && parseFlexibleDT(s.end) && parseFlexibleDT(s.end) <= coalStartDt)
+      .sort((a, b) => parseFlexibleDT(b.end) - parseFlexibleDT(a.end))[0];
+    if (!prevNickel) return;
+    const ne = parseFlexibleDT(prevNickel.end).getTime();
+    const cs = coalStartDt.getTime();
+    if (!(cs > ne)) return;
+
+    const inGap = items.filter((i) => {
+      if (i.type !== 'maint' || toRemove.has(i.id)) return false;
+      const nm = String(i.name || i.label || '').trim();
+      if (nm !== '장비청소') return false;
+      const ms = parseFlexibleDT(i.start)?.getTime();
+      const me = parseFlexibleDT(i.end)?.getTime();
+      if (ms == null || me == null) return false;
+      return ms < cs && me >= ne;
+    });
+    if (inGap.length <= 1) return;
+    inGap.sort((a, b) => {
+      const ams = parseFlexibleDT(a.start).getTime();
+      const bms = parseFlexibleDT(b.start).getTime();
+      const ad = Math.abs(ams - ne);
+      const bd = Math.abs(bms - ne);
+      if (ad !== bd) return ad - bd;
+      return ams - bms;
+    });
+    for (let k = 1; k < inGap.length; k++) toRemove.add(inGap[k].id);
+  });
+  if (toRemove.size) items = items.filter((x) => !toRemove.has(x.id));
+}
+
+// 니켈 일정이 늘어나 장비청소가 니켈 접안~출항 구간 안에만 남은 경우, 뒤따르는 석탄 전이면 해당 청소는 제거(자동 청소 1건만 두기 위함)
+function removeEquipmentCleaningsFullyInsideNickelBeforeFollowingCoal() {
+  const ships = items
+    .filter(i => i.type === 'ship' && parseFlexibleDT(i.start) && parseFlexibleDT(i.end))
+    .sort((a, b) => parseFlexibleDT(a.start) - parseFlexibleDT(b.start));
+  const toRemove = new Set();
+  ships.forEach((ship) => {
+    if (ship.cargoType !== '석탄') return;
+    const coalStartDt = parseFlexibleDT(ship.start);
+    if (!coalStartDt) return;
+    const prevNickel = ships
+      .filter(s => s.cargoType === '니켈' && parseFlexibleDT(s.end) && parseFlexibleDT(s.end) <= coalStartDt)
+      .sort((a, b) => parseFlexibleDT(b.end) - parseFlexibleDT(a.end))[0];
+    if (!prevNickel) return;
+    const ns = parseFlexibleDT(prevNickel.start)?.getTime();
+    const ne = parseFlexibleDT(prevNickel.end)?.getTime();
+    const cs = coalStartDt.getTime();
+    if (ns == null || ne == null || !(cs > ne)) return;
+    items.forEach((i) => {
+      if (i.type !== 'maint') return;
+      const nm = String(i.name || i.label || '').trim();
+      if (nm !== '장비청소') return;
+      const ms = parseFlexibleDT(i.start)?.getTime();
+      const me = parseFlexibleDT(i.end)?.getTime();
+      if (ms == null || me == null) return;
+      if (ms >= ns && me <= ne) toRemove.add(i.id);
+    });
+  });
+  if (toRemove.size) items = items.filter((x) => !toRemove.has(x.id));
+}
+
+// 선박 없이 시간순으로 연달아 있는 장비청소는 1건만 남김(앞선 것 유지)
+function dedupeConsecutiveEquipmentCleaningsWithoutShipBetween() {
+  const blocks = items
+    .filter(i =>
+      (i.type === 'ship' || i.type === 'maint' || i.type === 'jeonbi') &&
+      parseFlexibleDT(i.start) && parseFlexibleDT(i.end)
+    )
+    .sort((a, b) => parseFlexibleDT(a.start) - parseFlexibleDT(b.start));
+  const toRemove = new Set();
+  let lastEquipIdx = -1;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const isEq = b.type === 'maint' && String(b.name || b.label || '').trim() === '장비청소';
+    if (!isEq) continue;
+    if (lastEquipIdx >= 0) {
+      let hasShipBetween = false;
+      for (let j = lastEquipIdx + 1; j < i; j++) {
+        if (blocks[j].type === 'ship') {
+          hasShipBetween = true;
+          break;
+        }
+      }
+      if (!hasShipBetween) toRemove.add(b.id);
+    }
+    lastEquipIdx = i;
+  }
+  if (toRemove.size) items = items.filter((x) => !toRemove.has(x.id));
+}
+
+// 저장 시 전체 데이터 기준으로 니켈->석탄 전환 구간 청소 누락 보정 (구간당 1회)
 function ensureNickelToCoalMaintCoverage() {
+  dedupeNickelCoalGapCleanings();
+  removeEquipmentCleaningsFullyInsideNickelBeforeFollowingCoal();
+  dedupeNickelCoalGapCleanings();
+  dedupeConsecutiveEquipmentCleaningsWithoutShipBetween();
+
   const ships = items
     .filter(i => i.type === 'ship' && parseFlexibleDT(i.start) && parseFlexibleDT(i.end))
     .sort((a, b) => parseFlexibleDT(a.start) - parseFlexibleDT(b.start));
@@ -1773,7 +1961,6 @@ function ensureNickelToCoalMaintCoverage() {
     if (!coalStartDt) return;
 
     const prevNickel = ships
-      .slice(0, idx)
       .filter(s => s.cargoType === '니켈' && parseFlexibleDT(s.end) && parseFlexibleDT(s.end) <= coalStartDt)
       .sort((a, b) => parseFlexibleDT(b.end) - parseFlexibleDT(a.end))[0];
     if (!prevNickel) return;
@@ -1786,7 +1973,7 @@ function ensureNickelToCoalMaintCoverage() {
     if (maintEnd <= nickelEndDt) return;
 
     items.push({
-      id: Date.now().toString() + '_mfix_' + idx,
+      id: Date.now().toString() + '_mfix_' + idx + '_' + String(ship.id || ''),
       type: 'maint',
       name: '장비청소',
       start: toDTLocal(nickelEndDt),
@@ -2050,19 +2237,9 @@ function saveShip() {
     customer:  customer || null,
   };
   entry.baseDurMs = Math.max(SNAP_MS, parseDT(end).getTime() - parseDT(start).getTime());
-  const isNew = !editId;
   pushUndo();
   if (editId) { items[items.findIndex(x => x.id === editId)] = entry; }
   else        { items.push(entry); }
-
-  // 니켈 선박 신규 추가 시 → 장비청소 자동 삽입
-  if (isNew && cargoType === '니켈') {
-    autoAddMaintAfterNickel(end);
-  }
-  // 석탄 선박 신규 추가 시 → 직전 니켈 뒤 장비청소 자동 삽입
-  if (isNew && cargoType === '석탄') {
-    autoAddMaintBeforeCoal(start);
-  }
 
   normalizeImportedShipSequenceWithGap(2);
   ensureNickelToCoalMaintCoverage();
@@ -2201,26 +2378,91 @@ function downloadImage() {
   document.head.appendChild(scr);
 }
 
-async function captureImage() {
-  const tlOuter = document.getElementById('tlOuter');
-  if (!tlOuter) return;
+// html2canvas는 repeating-linear-gradient를 잘 못 그린다. 화면과 동일한 45°·13px 주기 줄무늬를
+// 고해상도 타일로 만들어 캡처 시에만 쓴다(저해상+pixelated는 ‘이미지 붙임’·계단 현상 유발).
+const MAINT_STRIPE_TILE_LOGICAL_PX = 104;
 
-  // 전체 페이지가 아니라 현재 스케줄 달력 영역만 캡처한다.
+function _getMaintStripeTileDataUrl(isJeonbi) {
+  const cache = _getMaintStripeTileDataUrl._c || (_getMaintStripeTileDataUrl._c = {});
+  const key = isJeonbi ? 'j' : 'm';
+  if (cache[key]) return cache[key];
+
+  const c1 = isJeonbi ? '#818cf8' : '#f59e0b';
+  const c2 = isJeonbi ? '#c7d2fe' : '#fde68a';
+  const period = 13;
+  const w1 = 5;
+  const L = MAINT_STRIPE_TILE_LOGICAL_PX;
+  const superSample = 4;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = L * superSample;
+  canvas.height = L * superSample;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  if (ctx.imageSmoothingQuality !== undefined) ctx.imageSmoothingQuality = 'high';
+
+  ctx.setTransform(superSample, 0, 0, superSample, 0, 0);
+  ctx.fillStyle = c2;
+  ctx.fillRect(0, 0, L, L);
+  ctx.save();
+  ctx.translate(L / 2, L / 2);
+  ctx.rotate((-45 * Math.PI) / 180);
+  const span = L * 4;
+  for (let x = -span; x < span; x += period) {
+    ctx.fillStyle = c1;
+    ctx.fillRect(x, -span, w1, 2 * span);
+  }
+  ctx.restore();
+  cache[key] = canvas.toDataURL('image/png');
+  return cache[key];
+}
+
+function _applyMaintBlocksForHtml2Canvas(clonedDoc) {
+  const root = clonedDoc.getElementById('tlOuter');
+  if (!root) return;
+  root.querySelectorAll('.maint-block').forEach((el) => {
+    const isJeonbi = el.classList.contains('type-jeonbi');
+    const tile = _getMaintStripeTileDataUrl(isJeonbi);
+    el.style.background = '';
+    el.style.backgroundColor = '';
+    el.style.backgroundImage = `url("${tile}")`;
+    el.style.backgroundRepeat = 'repeat';
+    el.style.backgroundSize = `${MAINT_STRIPE_TILE_LOGICAL_PX}px ${MAINT_STRIPE_TILE_LOGICAL_PX}px`;
+    el.style.backgroundPosition = '0 0';
+    el.style.imageRendering = 'auto';
+    el.style.webkitPrintColorAdjust = 'exact';
+    el.style.printColorAdjust = 'exact';
+    el.style.colorAdjust = 'exact';
+  });
+}
+
+async function captureImage() {
+  // 인쇄와 동일: 상단 통계(stats-bar) + 타임라인(#tlOuter). `#printOnlyBanner`는 화면에서 display:none이라 포함되지 않음.
+  const capRoot = document.getElementById('scheduleMainColumn') || document.getElementById('tlOuter');
+  if (!capRoot) return;
+  const tlOuter = document.getElementById('tlOuter');
+
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+  const prevScroll = tlOuter ? tlOuter.scrollLeft : 0;
+  if (tlOuter) tlOuter.scrollLeft = 0;
   try {
-    const canvas = await html2canvas(tlOuter, {
-      scale: 2,
+    const dpr = Math.min(3, Math.max(2, window.devicePixelRatio || 2));
+    const canvas = await html2canvas(capRoot, {
+      scale: dpr,
       useCORS: true,
       backgroundColor: '#f0f2f5',
       scrollX: -window.scrollX,
-      scrollY: -window.scrollY
+      scrollY: -window.scrollY,
+      onclone: (clonedDoc) => _applyMaintBlocksForHtml2Canvas(clonedDoc),
     });
     const fname = `7선석_스케줄_${toDateStr(new Date()).replace(/-/g,'')}.png`;
     const a = document.createElement('a');
     a.download = fname; a.href = canvas.toDataURL('image/png'); a.click();
   } catch(e) {
     alert('이미지 저장 오류: ' + e.message);
+  } finally {
+    if (tlOuter) tlOuter.scrollLeft = prevScroll;
   }
 }
 
@@ -2530,8 +2772,51 @@ function exportCSV() {
   a.download = '7선석_스케줄.csv'; a.click();
 }
 
+/**
+ * 인쇄(PDF) 시 포함되는 내용은 (1) 상단 통계 바 (2) 타임라인 #tlOuter — 이미지 저장과 동일 영역.
+ * 헤더·버튼·모달은 @media print 에서 숨긴다.
+ */
 function printSchedule() {
+  const banner = document.getElementById('printOnlyBanner');
+  const baseLbl = document.getElementById('pickerBaseLabel');
+  const base = (baseLbl && baseLbl.textContent) ? baseLbl.textContent.trim() : '';
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  let line = `7선석 스케줄 · 출력 ${stamp}`;
+  if (base) line += ` · 기준 ${base}`;
+  if (banner) {
+    banner.textContent = line;
+    banner.setAttribute('aria-hidden', 'false');
+  }
+  const tl = document.getElementById('tlOuter');
+  if (tl) tl.scrollLeft = 0;
+
+  // A4 가로(landscape) 인쇄 영역: 8mm 여백 기준 CSS px (96dpi)
+  const printableW = (297 - 16) / 25.4 * 96; // 281mm → ~1062px
+  const printableH = (210 - 16) / 25.4 * 96; // 194mm → ~734px
+
+  // 6줄(12주) 기준 인쇄 콘텐츠 높이 계산
+  // 행 그룹 1개 = 날짜행(32) + 선석행(120) = 152px, 간격 8px, tl-zoom padding 8px
+  const printTlH = 6 * (32 + 120) + 5 * 8 + 8; // 960px
+  const statBar = document.querySelector('.stats-bar');
+  const statsH = (statBar ? statBar.offsetHeight : 36) + 8;
+  const printContentH = printTlH + 50 + statsH; // 50 = banner 예상 높이+margin
+
+  const contentW = tl ? tl.scrollWidth : 0;
+  let zoomStyle = null;
+  if (contentW > 0 && printContentH > 0) {
+    const zoom = Math.min(printableW / contentW, printableH / printContentH);
+    if (zoom < 1) {
+      zoomStyle = document.createElement('style');
+      zoomStyle.textContent = `@media print { body > .schedule-main-column { zoom: ${zoom.toFixed(5)} !important; } }`;
+      document.head.appendChild(zoomStyle);
+    }
+  }
+
   window.print();
+
+  if (zoomStyle && zoomStyle.parentNode) zoomStyle.parentNode.removeChild(zoomStyle);
+  if (banner) banner.setAttribute('aria-hidden', 'true');
 }
 function save() {
   fetch('/api/schedule', {
